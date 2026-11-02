@@ -168,13 +168,13 @@ footer{margin-top:24px;font-size:.76rem;color:var(--muted);text-align:center;lin
     übergibt die Umbuchung auf das umsatzsteuerpflichtige Erlöskonto als Buchungsstapel.
     Die Anmeldung läuft über Ihre Windows-Sitzung — es sind keine Zugangsdaten nötig.</p>
   <div class="promo">
-    <span class="tag">Zeitfresser</span>
-    <p><b>Dieses Tool ist aus einem Zeitfresser entstanden.</b> Eine Kanzlei hat gemeldet, wie
+    <span class="tag">Ihr Thema</span>
+    <p>Eine Kanzlei hat gemeldet, wie
        viel Zeit es kostet, bei der Differenzbesteuerung jeden Vorgang einzeln aus Verkauf und
        Wareneingang zusammenzusuchen und die Marge von Hand umzubuchen — daraus wurde dieses
-       Werkzeug. Sagen Sie mir, was in Ihrer Buchhaltung am meisten Zeit frisst: zu jedem
-       gemeldeten Zeitfresser entsteht ein Video-Tutorial oder ein Tool wie dieses.</p>
-    <a class="cta" href="https://tally.so/r/GxE0Wp" target="_blank" rel="noopener">Zeitfresser melden</a>
+       Werkzeug. Sagen Sie mir, was in Ihrer Buchhaltung am meisten Zeit kostet: Aus jeder Meldung entsteht ein
+       Video-Tutorial oder ein Tool wie dieses.</p>
+    <a class="cta" href="https://tally.so/r/GxE0Wp" target="_blank" rel="noopener">Thema einreichen</a>
   </div>
 </header>
 
@@ -328,7 +328,7 @@ footer{margin-top:24px;font-size:.76rem;color:var(--muted);text-align:center;lin
 </details>
 
 <footer>
-  AHA Consulting GmbH · Single-File-Werkzeug für DATEVconnect · v1.2.1<br>
+  AHA Consulting GmbH · Single-File-Werkzeug für DATEVconnect · v1.2.2<br>
   Kein Proxy, kein <code>no-cors</code>, keine Zugangsdaten, keine Demo-Daten.
   Gebucht wird ausschließlich, was Sie in Schritt 4 markiert haben.
 </footer>
@@ -345,7 +345,7 @@ footer{margin-top:24px;font-size:.76rem;color:var(--muted);text-align:center;lin
 var DATEVCONNECT_BASE = 'http://localhost:58454/datev/api';
 
 /* =====================================================================
-   Differenzbesteuerung — Umbuchung der Marge · v1.2.1
+   Differenzbesteuerung — Umbuchung der Marge · v1.2.2
    AHA Consulting GmbH · Single-File-Werkzeug für DATEVconnect
 
    Konventionen aus DATEVconnect-CORS-Authentifizierung.md:
@@ -749,7 +749,7 @@ var DBU = (function(){
           record_type: 'financial_accounting',
           accounting_reason: 'independent_from_accounting_reason',
           is_committed: false,
-          application_information: 'AHA Differenzbesteuerung-Umbuchung v1.2.1',
+          application_information: 'AHA Differenzbesteuerung-Umbuchung v1.2.2',
           accounting_records: g.entries.map(function(e){ return e.rec; })
         }
       };
