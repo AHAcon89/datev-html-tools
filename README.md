@@ -16,11 +16,9 @@ hier kostenlos bereitgestellt.
 
 | Tool | Wofür | Schreibt in DATEV? | Datei |
 |---|---|---|---|
-| **Klärungs-Tool** | Gleicht ein Klärungskonto mit den offenen Posten der Kreditoren ab. Buchungen, die sich über Belegfeld 1 ausgleichen, blendet es aus. Markierte Buchungen übergibt es als Storno und Neubuchung im Buchungsstapel. Für die übrigen erstellt es eine Beleganforderung per E-Mail an den Mandanten. | ja, als Buchungsstapel | [`Hausmann-Klaerungs-Tool-v1.4.2.html`](tools/Hausmann-Klaerungs-Tool-v1.4.2.html) |
-| **Rechnungsnummern-Prüfung** | Prüft die Rechnungsnummern der Debitoren (Belegfeld 1) auf Fortlaufigkeit. Ergebnis sind zwei Listen: fehlende Nummern und Nummern außerhalb des Schemas. Dazu kommt eine Klärungs-E-Mail an den Mandanten. | nein, nur lesend | [`Rechnungsnummern-Pruefung-v1.2.1.html`](tools/Rechnungsnummern-Pruefung-v1.2.1.html) |
-| **Differenzbesteuerung-Umbuchung** | Ermittelt je Vorgang die Marge aus Erlös- und Wareneingangsbuchung. Die Umbuchung auf das umsatzsteuerpflichtige Erlöskonto übergibt es als Buchungsstapel. | ja, als Buchungsstapel | [`Differenzbesteuerung-Umbuchung-v1.2.1.html`](tools/Differenzbesteuerung-Umbuchung-v1.2.1.html) |
-
-Die Versionsnummer steht im Dateinamen. Ältere Versionen finden Sie unter **Releases**.
+| **Klärungs-Tool** | Gleicht ein Klärungskonto mit den offenen Posten der Kreditoren ab. Buchungen, die sich über Belegfeld 1 ausgleichen, blendet es aus. Markierte Buchungen übergibt es als Storno und Neubuchung im Buchungsstapel. Für die übrigen erstellt es eine Beleganforderung per E-Mail an den Mandanten. | ja, als Buchungsstapel | [`Hausmann-Klaerungs-Tool-v1.4.2.html`](tools/klaerungs-tool.html) |
+| **Rechnungsnummern-Prüfung** | Prüft die Rechnungsnummern der Debitoren (Belegfeld 1) auf Fortlaufigkeit. Ergebnis sind zwei Listen: fehlende Nummern und Nummern außerhalb des Schemas. Dazu kommt eine Klärungs-E-Mail an den Mandanten. | nein, nur lesend | [`Rechnungsnummern-Pruefung-v1.2.1.html`](tools/rechnungsnummern-pruefung.html) |
+| **Differenzbesteuerung-Umbuchung** | Ermittelt je Vorgang die Marge aus Erlös- und Wareneingangsbuchung. Die Umbuchung auf das umsatzsteuerpflichtige Erlöskonto übergibt es als Buchungsstapel. | ja, als Buchungsstapel | [`Differenzbesteuerung-Umbuchung-v1.2.1.html`](tools/differenzbesteuerung-umbuchung.html) |
 
 ---
 
