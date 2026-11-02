@@ -1,0 +1,1508 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Differenzbesteuerung — Umbuchung der Marge</title>
+<style>
+:root{
+  --aha-red:#B40F1B; --aha-coral:#FF5559; --aha-ink:#2D2D2D;
+  --aha-paper:#FBFAF8; --aha-white:#FFFFFF;
+  --muted:rgba(45,45,45,.60); --border:rgba(45,45,45,.12);
+  --grad:linear-gradient(135deg,#B40F1B 0%,#FF5559 100%);
+  --font:'Figtree',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace;
+  --r-card:20px; --r-btn:12px; --shadow:0 8px 30px rgba(45,45,45,.08);
+  --ok:#1B7F4B; --warn:#9A6200; --err:#B40F1B;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:var(--font);font-weight:500;color:var(--aha-ink);
+     background:var(--aha-paper);line-height:1.5;font-size:15px}
+h1,h2,h3,h4{font-weight:800;line-height:1.12;letter-spacing:-.01em;margin:0}
+code,.mono{font-family:var(--mono);font-size:.88em}
+a{color:var(--aha-red)}
+
+/* Auf 16:9-Bildschirmen zählt die Breite, nicht die Höhe: großzügige Maximalbreite
+   und ein 12-Spalten-Raster, damit nebeneinander steht, was zusammengehört. */
+.wrap{max-width:1680px;margin:0 auto;padding:20px 28px 48px}
+.deck{display:grid;grid-template-columns:repeat(12,1fr);gap:20px;align-items:start;margin-top:20px}
+section.card{background:var(--aha-white);border-radius:var(--r-card);box-shadow:var(--shadow);
+  padding:24px 28px;grid-column:span 12}
+section.card.col6{grid-column:span 6}
+section.card.col7{grid-column:span 7}
+section.card.col5{grid-column:span 5}
+section.card.dim{opacity:.45;pointer-events:none}
+section.card h2{font-size:1.2rem;display:flex;align-items:center;gap:11px}
+.step{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;
+  border-radius:50%;background:var(--aha-red);color:#fff;font-size:.9rem;flex:0 0 30px}
+.step.done{background:var(--ok)}
+@media (max-width:1180px){
+  section.card.col6,section.card.col7,section.card.col5{grid-column:span 12}
+}
+
+header.hero{background:var(--grad);color:#fff;border-radius:var(--r-card);
+  padding:26px 32px;box-shadow:var(--shadow)}
+header.hero h1{font-size:clamp(1.5rem,2.1vw,1.95rem)}
+header.hero .lead{margin:9px 0 0;max-width:120ch;font-size:.94rem;opacity:.96}
+header.hero .brand{font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;
+  opacity:.85;margin-bottom:8px;font-weight:800}
+
+/* Werbeblock: aus welchem Format dieses Tool entstanden ist. Übernommen aus
+   Hausmann-Klaerungs-Tool-v1.4.1.html. Genau EIN Link, im Druck ausgeblendet. */
+.promo{margin-top:18px;display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;
+  background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.38);
+  border-radius:var(--r-btn);padding:13px 18px}
+.promo .tag{font-weight:800;text-transform:uppercase;letter-spacing:.1em;font-size:.7rem;
+  background:rgba(255,255,255,.24);border-radius:8px;padding:5px 10px;flex:0 0 auto}
+.promo p{margin:0;flex:1 1 420px;font-size:.86rem;opacity:.96;line-height:1.5}
+.promo a.cta{color:#fff;font-weight:800;font-size:.86rem;background:rgba(45,45,45,.30);
+  border:1px solid rgba(255,255,255,.5);border-radius:var(--r-btn);padding:9px 18px;
+  text-decoration:none;white-space:nowrap;flex:0 0 auto;transition:background .18s ease}
+.promo a.cta:hover{background:#fff;color:var(--aha-red);border-color:#fff}
+
+.sub{color:var(--muted);margin:8px 0 0;font-size:.87rem;max-width:104ch}
+h3.block{font-size:1rem;margin:20px 0 6px}
+
+label.f{display:block;margin-top:13px;font-size:.73rem;font-weight:800;
+  text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+input[type=text],select,textarea{width:100%;padding:9px 12px;border:1.5px solid var(--border);
+  border-radius:var(--r-btn);font-family:var(--font);font-weight:500;font-size:.95rem;
+  color:var(--aha-ink);background:var(--aha-white);margin-top:5px}
+input[type=text]:focus,select:focus{outline:2px solid var(--aha-coral);border-color:var(--aha-red)}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+
+.btn{font-family:var(--font);font-weight:800;border-radius:var(--r-btn);padding:10px 20px;
+  background:var(--aha-red);color:#fff;border:none;cursor:pointer;font-size:.95rem;
+  transition:background .18s ease}
+.btn:hover:not(:disabled){background:var(--aha-coral)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.sec{background:transparent;border:1.5px solid var(--aha-red);color:var(--aha-red)}
+.btn.sec:hover:not(:disabled){background:var(--aha-red);color:#fff}
+.btn.sm{padding:6px 14px;font-size:.84rem}
+.btnrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;align-items:center}
+
+.notice{border:1.5px solid var(--border);border-left:4px solid var(--aha-red);
+  border-radius:var(--r-btn);padding:10px 14px;margin-top:12px;font-size:.88rem;
+  background:var(--aha-paper)}
+.notice.ok{border-left-color:var(--ok)}
+.notice.warn{border-left-color:var(--warn)}
+.notice.err{border-left-color:var(--err);background:#FDF3F3}
+.notice pre{white-space:pre-wrap;word-break:break-word;font-family:var(--mono);
+  font-size:.78rem;margin:7px 0 0;color:var(--muted)}
+
+.pill{display:inline-block;padding:1px 9px;border-radius:999px;font-size:.72rem;font-weight:800;
+  border:1.5px solid var(--border);background:var(--aha-paper);white-space:nowrap}
+.pill.ok{color:var(--ok);border-color:var(--ok)}
+.pill.warn{color:var(--warn);border-color:var(--warn)}
+.pill.err{color:var(--err);border-color:var(--err)}
+.pill.mut{color:var(--muted)}
+
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:16px}
+.kpi{border:1.5px solid var(--border);border-radius:var(--r-btn);padding:11px 13px;
+  background:var(--aha-paper)}
+.kpi .v{font-size:1.35rem;font-weight:800;line-height:1.1}
+.kpi.accent .v{color:var(--aha-red)}
+.kpi .k{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);
+  font-weight:800}
+.kpi .h{font-size:.74rem;color:var(--muted);margin-top:3px}
+
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th,td{text-align:left;padding:6px 9px;border-bottom:1px solid var(--border);vertical-align:top}
+th{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);
+  font-weight:800;white-space:nowrap}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+tr.row-warn{background:#FFFBF0}
+tr.row-off{background:var(--aha-paper);color:var(--muted)}
+.tblbox{overflow-x:auto;margin-top:10px}
+/* Auf 16:9 bleibt die Tabelle im Blick: eigener Rollbereich mit stehendem Kopf,
+   statt die Seite ins Endlose wachsen zu lassen. */
+.tblscroll{max-height:56vh;overflow:auto;border:1px solid var(--border);
+  border-radius:var(--r-btn);margin-top:10px}
+.tblscroll table{font-size:.84rem}
+.tblscroll thead th{position:sticky;top:0;background:var(--aha-white);z-index:2;
+  box-shadow:inset 0 -1px 0 var(--border)}
+
+details{margin-top:12px;border:1.5px solid var(--border);border-radius:var(--r-btn);
+  padding:10px 14px;background:var(--aha-white)}
+details>summary{cursor:pointer;font-weight:800;font-size:.87rem;color:var(--aha-ink)}
+details>summary::marker{color:var(--aha-red)}
+details[open]>summary{margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+details.info{background:var(--aha-paper)}
+details.info>summary{font-weight:500;color:var(--muted);font-size:.84rem}
+.chk{display:flex;gap:9px;align-items:flex-start;margin-top:10px}
+.chk input{margin-top:4px;flex:0 0 auto}
+.chk .t{font-weight:800;font-size:.88rem}
+.chk .d{font-size:.8rem;color:var(--muted)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--aha-red);
+  margin-right:8px;vertical-align:middle}
+.spin{display:inline-block;width:12px;height:12px;border:2px solid var(--border);
+  border-top-color:var(--aha-red);border-radius:50%;animation:sp .8s linear infinite;
+  vertical-align:-2px;margin-right:7px}
+@keyframes sp{to{transform:rotate(360deg)}}
+#diagLog{font-family:var(--mono);font-size:.72rem;white-space:pre-wrap;word-break:break-word;
+  max-height:300px;overflow:auto;color:var(--muted)}
+footer{margin-top:24px;font-size:.76rem;color:var(--muted);text-align:center;line-height:1.6}
+@media print{
+  .btn,.btnrow,.promo{display:none!important}
+  .deck{display:block}
+  section.card{box-shadow:none;border:1px solid var(--border);page-break-inside:avoid;
+    margin-bottom:14px}
+  .tblscroll{max-height:none;overflow:visible;border:none}
+  details{border:none;padding:0}
+  details>summary{display:none}
+  details:not([open])>*:not(summary){display:block!important}
+  header.hero{background:none;color:var(--aha-ink);box-shadow:none;
+    border-bottom:3px solid var(--aha-red)}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="brand">AHA Consulting GmbH · DATEVconnect</div>
+  <h1>Differenzbesteuerung — Umbuchung der Marge</h1>
+  <p class="lead">Ermittelt je Vorgang die Marge aus Erlös- und Wareneingangsbuchung und
+    übergibt die Umbuchung auf das umsatzsteuerpflichtige Erlöskonto als Buchungsstapel.
+    Die Anmeldung läuft über Ihre Windows-Sitzung — es sind keine Zugangsdaten nötig.</p>
+  <div class="promo">
+    <span class="tag">Zeitfresser</span>
+    <p><b>Dieses Tool ist aus einem Zeitfresser entstanden.</b> Eine Kanzlei hat gemeldet, wie
+       viel Zeit es kostet, bei der Differenzbesteuerung jeden Vorgang einzeln aus Verkauf und
+       Wareneingang zusammenzusuchen und die Marge von Hand umzubuchen — daraus wurde dieses
+       Werkzeug. Sagen Sie mir, was in Ihrer Buchhaltung am meisten Zeit frisst: zu jedem
+       gemeldeten Zeitfresser entsteht ein Video-Tutorial oder ein Tool wie dieses.</p>
+    <a class="cta" href="https://tally.so/r/GxE0Wp" target="_blank" rel="noopener">Zeitfresser melden</a>
+  </div>
+</header>
+
+<div class="deck">
+
+<!-- ============================= 1 ============================= -->
+<section class="card col7" id="card1">
+  <h2><span class="step" id="s1">1</span> Mandant und Wirtschaftsjahr</h2>
+  <div class="btnrow"><button class="btn" id="btnConnect">Mandanten laden</button></div>
+  <div id="connStatus"></div>
+
+  <div id="selects" style="display:none">
+    <div class="grid2">
+      <div><label class="f" for="selClient">Mandant</label>
+        <select id="selClient"></select></div>
+      <div><label class="f" for="selFy">Wirtschaftsjahr der Erlösbuchungen</label>
+        <select id="selFy"></select></div>
+    </div>
+    <div id="fyInfo"></div>
+  </div>
+
+  <details class="info"><summary>Woher die Angaben kommen</summary>
+    <p class="sub" style="margin:0">Mandantenliste über <code>GET /clients</code>,
+      Wirtschaftsjahre über <code>GET /clients/{id}/fiscal-years</code>. Aus dem
+      Wirtschaftsjahr werden der Kontenrahmen (<code>account_system</code>) und die
+      Sachkontenlänge (<code>account_length</code>) gelesen.</p></details>
+</section>
+
+<!-- ============================= 2 ============================= -->
+<section class="card col5 dim" id="card2">
+  <h2><span class="step" id="s2">2</span> Konten</h2>
+  <div class="grid3">
+    <div><label class="f" for="accRev">Erlös differenzbesteuert</label>
+      <input type="text" id="accRev" inputmode="numeric" placeholder="z. B. 4134">
+      <div class="sub" style="margin-top:3px;font-size:.76rem" id="echoRev"></div></div>
+    <div><label class="f" for="accRebook">Umbuchungskonto (USt-pflichtig)</label>
+      <input type="text" id="accRebook" inputmode="numeric" placeholder="z. B. 4132">
+      <div class="sub" style="margin-top:3px;font-size:.76rem" id="echoRebook"></div></div>
+    <div><label class="f" for="accGoods">Wareneingang differenzbesteuert</label>
+      <input type="text" id="accGoods" inputmode="numeric" placeholder="z. B. 5238">
+      <div class="sub" style="margin-top:3px;font-size:.76rem" id="echoGoods"></div></div>
+  </div>
+  <div id="accNote"></div>
+
+  <details class="info"><summary>Zur Kontenschreibweise</summary>
+    <p class="sub" style="margin:0">Die Vorbelegung richtet sich nach dem Kontenrahmen des
+      gewählten Wirtschaftsjahres; jedes Konto ist überschreibbar — maßgeblich ist immer das,
+      was hier steht. Eingegeben wird die Nummer so, wie DATEV sie anzeigt; das Tool rechnet
+      sie in die technische Maximallänge um (8-stellig, rechts mit Nullen aufgefüllt).</p></details>
+</section>
+
+<!-- ============================= 3 ============================= -->
+<section class="card col7 dim" id="card3">
+  <h2><span class="step" id="s3">3</span> Buchungen abrufen und Zuordnungsfeld wählen</h2>
+  <div class="btnrow"><button class="btn" id="btnFetch">Buchungen abrufen</button></div>
+  <div id="fetchStatus"></div>
+  <div id="fetchResult"></div>
+
+  <div id="assignBox" style="display:none">
+    <h3 class="block"><span class="dot"></span>Zuordnungsfeld</h3>
+    <div class="grid2">
+      <div><label class="f" for="selField">Feld</label>
+        <select id="selField">
+          <option value="text">Buchungstext (posting_description)</option>
+          <option value="ai">Zusatzinformation (additional_information)</option>
+        </select></div>
+      <div id="aiWrap" style="display:none"><label class="f" for="selAiType">Art der Zusatzinformation</label>
+        <select id="selAiType"></select></div>
+    </div>
+    <div id="assignPreview"></div>
+  </div>
+
+  <details class="info"><summary>Was abgerufen wird</summary>
+    <p class="sub" style="margin:0">Gelesen werden das Erlöskonto und das Umbuchungskonto im
+      gewählten Wirtschaftsjahr — beide mit <code>expand=all</code>, weil die
+      Zusatzinformationen sonst nicht mitkommen. Danach wählen Sie das Feld, das die Zuordnung
+      zum Vorgang trägt (z. B. die Fahrgestellnummer).</p></details>
+</section>
+
+<!-- ============================= 5 (Übergabe, rechts neben 3) ============================= -->
+<section class="card col5 dim" id="card5">
+  <h2><span class="step" id="s5">5</span> Übergabe an DATEV</h2>
+  <div id="bookResult"></div>
+  <div class="btnrow">
+    <button class="btn" id="btnPost" disabled>An DATEV übergeben</button>
+    <button class="btn sec sm" id="btnPreview">JSON ansehen</button>
+  </div>
+  <div id="postStatus"></div>
+  <div id="previewBox"></div>
+
+  <details class="info"><summary>Wie übergeben wird</summary>
+    <p class="sub" style="margin:0">Über <code>POST /accounting-sequences</code>. Der Stapel
+      heißt <b>Diffbest. Umbuchung MM/JJ</b> und wird <b>nicht festgeschrieben</b> — er steht
+      danach in der DATEV-Stapelverarbeitung und ist dort noch prüfbar.</p></details>
+</section>
+
+<!-- ============================= 4 ============================= -->
+<section class="card dim" id="card4">
+  <h2><span class="step" id="s4">4</span> Wareneingang suchen und Vorgänge bilden</h2>
+  <div class="btnrow"><button class="btn" id="btnMatch">Wareneingang suchen</button></div>
+  <div id="matchStatus"></div>
+  <div id="matchResult"></div>
+
+  <details class="info"><summary>Wie gesucht wird</summary>
+    <p class="sub" style="margin:0">Für jede noch nicht umgebuchte Zuordnung wird das
+      Wareneingangskonto Wirtschaftsjahr für Wirtschaftsjahr rückwärts gelesen — beginnend beim
+      gewählten Jahr, bis jede Zuordnung gefunden ist oder die Liste der Wirtschaftsjahre
+      erschöpft ist.</p></details>
+</section>
+
+</div><!-- /deck -->
+
+<!-- ============================= Einstellungen ============================= -->
+<details id="settings">
+  <summary>Einstellungen und Diagnose</summary>
+  <div class="grid2">
+    <div>
+      <label class="f">Adresse DATEVconnect</label>
+      <div class="sub" style="font-size:.78rem"><code id="baseEcho"></code><br>Fest im Quelltext eingetragen (Block <b>KONFIGURATION</b> am Anfang des Skripts). Kein Proxy, kein
+        <code>no-cors</code> — die CORS-Header kommen von DATEVconnect selbst.</div>
+    </div>
+    <div>
+      <div class="chk"><input type="checkbox" id="cfgFilter" checked>
+        <div><div class="t">Serverfilter auf die Kontonummer verwenden</div>
+          <div class="d">Sendet <code>filter=account_number eq …</code> mit. Wird der Filter
+            abgelehnt (HTTP 400), werden alle Buchungen des Wirtschaftsjahres geladen und erst
+            im Browser eingegrenzt — langsamer, gleiches Ergebnis.</div></div></div>
+
+      <div class="chk"><input type="checkbox" id="cfgAllYears">
+        <div><div class="t">Alle Wirtschaftsjahre lesen</div>
+          <div class="d">Ohne diesen Schalter endet der Rückwärtslauf, sobald jede Zuordnung
+            mindestens eine Wareneingangsbuchung hat. Liegen zu einem Vorgang weitere
+            Wareneingänge in noch älteren Jahren, fehlen sie dann in der Summe.</div></div></div>
+
+      <div class="chk"><input type="checkbox" id="cfgSplit" checked>
+        <div><div class="t">Je Buchungsmonat einen eigenen Stapel bilden</div>
+          <div class="d">Die Spezifikation verlangt, dass <code>date_from</code> und
+            <code>date_to</code> eines Stapels in <b>einer</b> Buchungsperiode liegen.</div></div></div>
+
+      <div class="chk"><input type="checkbox" id="cfgDiag">
+        <div><div class="t">Expertenansicht</div>
+          <div class="d">Zeigt Rohwerte der gelieferten Buchungen, Trefferzahlen je
+            Wirtschaftsjahr und das Protokoll aller Aufrufe mit Statuscode.</div></div></div>
+    </div>
+  </div>
+
+  <div id="diagWrap" style="display:none">
+    <h3 class="block">Protokoll der Aufrufe</h3>
+    <div id="diagLog"></div>
+  </div>
+</details>
+
+<footer>
+  AHA Consulting GmbH · Single-File-Werkzeug für DATEVconnect · v1.2.1<br>
+  Kein Proxy, kein <code>no-cors</code>, keine Zugangsdaten, keine Demo-Daten.
+  Gebucht wird ausschließlich, was Sie in Schritt 4 markiert haben.
+</footer>
+</div>
+
+<script>
+'use strict';
+/* ===================== KONFIGURATION – nur hier ändern =====================
+   Adresse von DATEVconnect. Fest eingetragen, damit sie nicht versehentlich
+   (oder auf fremde Veranlassung) in der Oberfläche umgestellt werden kann.
+   HTTPS-Variante:  'https://localhost:58452/datev/api'
+   Wer DATEVconnect anders erreicht (z. B. über einen Server), ändert NUR diese Zeile.
+   ============================================================================ */
+var DATEVCONNECT_BASE = 'http://localhost:58454/datev/api';
+
+/* =====================================================================
+   Differenzbesteuerung — Umbuchung der Marge · v1.2.1
+   AHA Consulting GmbH · Single-File-Werkzeug für DATEVconnect
+
+   Konventionen aus DATEVconnect-CORS-Authentifizierung.md:
+     - keine Zugangsdaten (Anmeldung über die Windows-Sitzung)
+     - jeder fetch mit mode:'cors' + credentials:'include'
+     - GET nur mit Accept-Header (kein Preflight); POST mit JSON-Body
+     - Query von Hand kodieren (URLSearchParams macht %20 zu '+')
+     - Fallback include -> omit genau einmal, Fehler nicht verschlucken
+     - Kontonummern in technischer Maximallänge (Sachkonto 8-stellig,
+       rechts mit Nullen aufgefüllt: 4134 -> 41340000)
+     - /account-postings kennt laut Accounting-1.7.4.4.json KEIN skip/top.
+       Ein Abruf, keine Blätterung. Filterbar sind nur account_number,
+       date und accounting_reason. Zusatzinformationen kommen NUR mit
+       expand=all.
+   ===================================================================== */
+
+/* ===================== CORE-START — keine DOM-Zugriffe ===================== */
+var DBU = (function(){
+
+  /* ---------------- Grundfunktionen ---------------- */
+  function num(v){ var n=Number(v); return isFinite(n)?n:0; }
+  function r2(n){ return Math.round((Number(n)||0)*100)/100; }
+  function isoDate(dt){ return dt?String(dt).slice(0,10):''; }
+  function deDate(iso){
+    var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||'');
+    return m?m[3]+'.'+m[2]+'.'+m[1]:(iso||'');
+  }
+  function monthKey(iso){ var m=/^(\d{4})-(\d{2})/.exec(iso||''); return m?m[1]+'-'+m[2]:''; }
+  function monthLabel(k){ var m=/^(\d{4})-(\d{2})$/.exec(k||''); return m?m[2]+'/'+m[1]:k||''; }
+  function clip(s,n){ s=String(s==null?'':s); return s.length>n?s.slice(0,n):s; }
+  function fmt(n){
+    var v=r2(n), neg=v<0; v=Math.abs(v);
+    var s=v.toFixed(2).split('.');
+    return (neg?'-':'')+s[0].replace(/\B(?=(\d{3})+(?!\d))/g,'.')+','+s[1];
+  }
+  function fmtInt(n){ return String(Math.round(num(n))).replace(/\B(?=(\d{3})+(?!\d))/g,'.'); }
+
+  /* Sommerzeit-Offset für das vollständige date-time, das die Spezifikation
+     bei date_from/date_to verlangt. Ein falscher Offset kann das Datum schieben. */
+  function lastSunday(year, monthIdx){
+    var d=new Date(Date.UTC(year, monthIdx+1, 0));
+    d.setUTCDate(d.getUTCDate()-d.getUTCDay());
+    return d;
+  }
+  function germanOffset(iso){
+    var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||''); if(!m) return '+01:00';
+    var y=+m[1], t=Date.UTC(y,+m[2]-1,+m[3]);
+    return (t>=lastSunday(y,2).getTime() && t<lastSunday(y,9).getTime()) ? '+02:00' : '+01:00';
+  }
+  function isoToDateTime(iso){ return iso ? iso+'T00:00:00.000'+germanOffset(iso) : ''; }
+
+  /* ---------------- Konten in technische Maximallänge ---------------- */
+  /* Sachkonto -> 8 Stellen: erst mit führenden Nullen auf die Sachkontenlänge
+     des Wirtschaftsjahres, dann mit nachgestellten Nullen auf 8. Idempotent. */
+  function toTechnical(acc, accountLength){
+    var s=String(acc==null?'':acc).replace(/\D/g,''); if(!s) return 0;
+    var L=accountLength||4;
+    if(s.length>8) s=s.slice(0,8);
+    if(s.length<L) s=('00000000'+s).slice(-L);
+    while(s.length<8) s=s+'0';
+    return parseInt(s,10);
+  }
+  /* Technische Nummer zurück auf die Anzeigenummer — nur zur Darstellung.
+     Zurückgeschnitten wird nur, wenn der abgeschnittene Rest ausschließlich
+     Nullen enthält; sonst bleibt die Nummer, wie sie geliefert wurde. */
+  function toDisplay(acc, accountLength){
+    var s=String(acc==null?'':acc).replace(/\D/g,''); if(!s) return '';
+    var L=accountLength||4;
+    if(s.length>8) s=s.slice(0,8);
+    while(s.length<8) s=s+'0';
+    var head=s.slice(0,L), tail=s.slice(L);
+    if(/^0*$/.test(tail)) return String(parseInt(head,10));
+    return String(parseInt(s,10));
+  }
+
+  /* ---------------- Kontenvorbelegung je Kontenrahmen ---------------- */
+  /* Vorgaben von Andreas (21.09.2026). account_system des Wirtschaftsjahres
+     liefert den SKR; ist er unbekannt, wird NICHTS vorbelegt. */
+  var SKR_DEFAULTS = {
+    '4':  { revenue:'4134', rebook:'4132', goods:'5238', label:'SKR04' },
+    '3':  { revenue:'8197', rebook:'8199', goods:'3293', label:'SKR03' },
+    '51': { revenue:'8110', rebook:'8111', goods:'3110', label:'SKR51' }
+  };
+  function defaultsForSkr(accountSystem){
+    var k=String(accountSystem==null?'':accountSystem).replace(/\D/g,'');
+    k=k.replace(/^0+(?=\d)/,'');
+    return SKR_DEFAULTS[k] || null;
+  }
+  /* Die Vorgabekonten sind vierstellig notiert. Hat der Mandant eine längere
+     Sachkontenlänge, wird rechts mit Nullen aufgefüllt — 4134 bei Länge 5
+     ergibt 41340, wie DATEV die Konten beim Verlängern des Kontenrahmens
+     fortschreibt. Kürzer als vier Stellen wird nicht geschnitten. */
+  function defaultAccount(base, accountLength){
+    var s=String(base==null?'':base).replace(/\D/g,''); if(!s) return '';
+    var L=accountLength||4;
+    while(s.length<L) s=s+'0';
+    return s;
+  }
+
+  /* ---------------- Zuordnungsschlüssel ---------------- */
+  /* Normalisiert exakt (Vorgabe von Andreas): Groß-/Kleinschreibung egal,
+     alles außer Buchstaben und Ziffern entfällt. "WVW ZZZ 1234" == "wvwzzz1234".
+     Der GANZE Feldinhalt muss übereinstimmen — kein Teiltreffer. */
+  function normKey(s){
+    return String(s==null?'':s).toUpperCase().replace(/[^A-Z0-9]/g,'');
+  }
+
+  /* ---------------- Buchung normalisieren ---------------- */
+  /* Rohwerte werden mitgeführt und bleiben sichtbar. Vorzeichen werden nicht
+     geraten: signedRevenue/signedGoods rechnen mit den gelieferten Feldern.
+     Generalumkehrbuchungen liefert DATEVconnect mit negativem Betrag im Feld
+     der Seite, auf der sie im Kontoblatt stehen — die Summenbildung verarbeitet
+     das richtig, die Zeile wird aber als GU gekennzeichnet. */
+  function normPosting(raw){
+    raw=raw||{};
+    var ai=[];
+    var src=raw.additional_information;
+    if(Object.prototype.toString.call(src)==='[object Array]'){
+      for(var i=0;i<src.length;i++){
+        var a=src[i]||{};
+        ai.push({ type:String(a.additional_information_type==null?'':a.additional_information_type),
+                  content:String(a.additional_information_content==null?'':a.additional_information_content) });
+      }
+    }
+    return {
+      id: raw.id==null?'':String(raw.id),
+      account: num(raw.account_number),
+      contra: num(raw.contra_account_number),
+      iso: isoDate(raw.date),
+      rawDebit: raw.amount_debit,
+      rawCredit: raw.amount_credit,
+      debit: num(raw.amount_debit),
+      credit: num(raw.amount_credit),
+      doc1: String(raw.document_field1==null?'':raw.document_field1),
+      doc2: String(raw.document_field2==null?'':raw.document_field2),
+      text: String(raw.posting_description==null?'':raw.posting_description),
+      taxKey: raw.accounting_transaction_key==null?null:num(raw.accounting_transaction_key),
+      gu: !!raw.general_reversal,
+      ai: ai,
+      seq: String(raw.accounting_sequence_id==null?'':raw.accounting_sequence_id)
+    };
+  }
+
+  /* Erlöse stehen im Haben, Wareneingänge im Soll. */
+  function signedRevenue(p){ return r2(num(p.credit)-num(p.debit)); }
+  function signedGoods(p){ return r2(num(p.debit)-num(p.credit)); }
+
+  /* Entdoppelung über die id; inhaltsgleiche Sätze ohne id bleiben erhalten. */
+  function dedupe(list){
+    var seen={}, out=[], collapsed=0;
+    for(var i=0;i<list.length;i++){
+      var p=list[i];
+      var k = p.id ? 'id:'+p.id : null;
+      if(k){ if(seen[k]){ collapsed++; continue; } seen[k]=1; }
+      out.push(p);
+    }
+    return { list:out, collapsed:collapsed };
+  }
+
+  /* ---------------- Zuordnungswert einer Buchung ---------------- */
+  /* mode 'text' -> posting_description
+     mode 'ai'   -> Inhalt der Zusatzinformation mit der gewählten Art       */
+  function assignValue(p, mode, aiType){
+    if(mode==='ai'){
+      var t=normKey(aiType);
+      for(var i=0;i<p.ai.length;i++) if(normKey(p.ai[i].type)===t) return p.ai[i].content;
+      return '';
+    }
+    return p.text;
+  }
+
+  /* Alle in einer Buchungsmenge vorkommenden Arten von Zusatzinformationen,
+     mit Anzahl — Grundlage für die Auswahlliste im Schritt 3. */
+  function aiTypeStats(list){
+    var map={}, out=[];
+    for(var i=0;i<list.length;i++){
+      for(var j=0;j<list[i].ai.length;j++){
+        var t=list[i].ai[j].type;
+        if(!t) continue;
+        if(!map[t]){ map[t]={ type:t, count:0, sample:list[i].ai[j].content }; out.push(map[t]); }
+        map[t].count++;
+        if(!map[t].sample) map[t].sample=list[i].ai[j].content;
+      }
+    }
+    out.sort(function(a,b){ return b.count-a.count; });
+    return out;
+  }
+
+  /* ---------------- Gruppierung nach Zuordnung ---------------- */
+  function groupByAssignment(list, mode, aiType){
+    var map={}, order=[], noKey=[];
+    for(var i=0;i<list.length;i++){
+      var p=list[i];
+      var val=assignValue(p, mode, aiType);
+      var key=normKey(val);
+      if(!key){ noKey.push(p); continue; }
+      if(!map[key]){ map[key]={ key:key, value:String(val), postings:[] }; order.push(map[key]); }
+      map[key].postings.push(p);
+    }
+    return { map:map, groups:order, noKey:noKey };
+  }
+
+  /* Schlüsselmenge der bereits umgebuchten Vorgänge.
+     Gelesen wird das Umbuchungskonto im Wirtschaftsjahr der Erlösbuchung
+     (Vorgabe von Andreas). Berücksichtigt werden das gewählte Zuordnungsfeld
+     UND — weil das Tool sie selbst schreibt — die Zusatzinformation mit der
+     Art aus vorgangType. */
+  function doneKeys(umbPostings, mode, aiType, vorgangType){
+    var set={};
+    for(var i=0;i<umbPostings.length;i++){
+      var p=umbPostings[i];
+      var k=normKey(assignValue(p, mode, aiType));
+      if(k) set[k]=(set[k]||0)+1;
+      var vt=normKey(vorgangType);
+      for(var j=0;j<p.ai.length;j++){
+        if(normKey(p.ai[j].type)===vt){
+          var k2=normKey(p.ai[j].content);
+          if(k2) set[k2]=(set[k2]||0)+1;
+        }
+      }
+    }
+    return set;
+  }
+
+  /* ---------------- Vorgänge bilden ---------------- */
+  /* revPostings   Buchungen auf dem Erlöskonto (gewähltes Wirtschaftsjahr)
+     umbPostings   Buchungen auf dem Umbuchungskonto (dasselbe Wirtschaftsjahr)
+     goodsHits     { key: [ {p:Buchung, fyId:'20240101', fyLabel:'2024'} ] }
+                   aus dem Rückwärtslauf über die Wirtschaftsjahre
+     cfg           { mode, aiType, vorgangType, eps }                          */
+  var EPS = 0.005;
+
+  function buildVorgaenge(revPostings, umbPostings, goodsHits, cfg){
+    cfg=cfg||{};
+    var mode=cfg.mode||'text', aiType=cfg.aiType||'', vorgangType=cfg.vorgangType||'Vorgang';
+    var eps=cfg.eps==null?EPS:cfg.eps;
+
+    var g=groupByAssignment(revPostings, mode, aiType);
+    var done=doneKeys(umbPostings, mode, aiType, vorgangType);
+
+    var out=[];
+    for(var i=0;i<g.groups.length;i++){
+      var grp=g.groups[i];
+      var rev=grp.postings.slice().sort(function(a,b){ return a.iso<b.iso?-1:a.iso>b.iso?1:0; });
+      var vkSum=0, revGu=false, docs={}, docList=[];
+      for(var a=0;a<rev.length;a++){
+        vkSum=r2(vkSum+signedRevenue(rev[a]));
+        if(rev[a].gu) revGu=true;
+        var d=rev[a].doc1; if(d && !docs[d]){ docs[d]=1; docList.push(d); }
+      }
+      var ref=rev[rev.length-1];               /* jüngste Erlösbuchung als Bezug */
+
+      var hits=(goodsHits && goodsHits[grp.key]) || [];
+      var we=hits.slice().sort(function(a,b){ return a.p.iso<b.p.iso?-1:a.p.iso>b.p.iso?1:0; });
+      var weSum=0, weGu=false, weYears={}, weYearList=[];
+      for(var b=0;b<we.length;b++){
+        weSum=r2(weSum+signedGoods(we[b].p));
+        if(we[b].p.gu) weGu=true;
+        var y=we[b].fyLabel||we[b].fyId;
+        if(y && !weYears[y]){ weYears[y]=1; weYearList.push(y); }
+      }
+      var weRef = we.length ? we[we.length-1] : null;
+
+      var marge=r2(vkSum-weSum);
+      var status;
+      if(done[grp.key]) status='done';
+      else if(!we.length) status='noGoods';
+      else if(marge<-eps) status='negative';
+      else if(Math.abs(marge)<eps) status='zero';
+      else status='ok';
+
+      out.push({
+        key: grp.key,
+        value: grp.value,
+        rev: rev, we: we,
+        vkSum: vkSum, weSum: weSum, marge: marge,
+        vkIso: ref?ref.iso:'', weIso: weRef?weRef.p.iso:'',
+        doc1: ref?ref.doc1:'', docList: docList, docMixed: docList.length>1,
+        text: ref?ref.text:'',
+        weYears: weYearList,
+        multi: rev.length>1 || we.length>1,
+        gu: revGu || weGu,
+        status: status,
+        bookable: status==='ok'
+      });
+    }
+
+    out.sort(function(a,b){
+      if(a.vkIso!==b.vkIso) return a.vkIso<b.vkIso?-1:1;
+      return a.value<b.value?-1:a.value>b.value?1:0;
+    });
+
+    var stat={ total:out.length, ok:0, done:0, noGoods:0, negative:0, zero:0,
+               multi:0, gu:0, noKey:g.noKey.length, sumMarge:0 };
+    for(var c=0;c<out.length;c++){
+      stat[out[c].status]++;
+      if(out[c].multi) stat.multi++;
+      if(out[c].gu) stat.gu++;
+      if(out[c].status==='ok') stat.sumMarge=r2(stat.sumMarge+out[c].marge);
+    }
+    return { vorgaenge:out, stat:stat, noKey:g.noKey };
+  }
+
+  /* ---------------- Buchungssatz ---------------- */
+  /* Positive Marge: Erlöskonto differenzbesteuert AN Umbuchungskonto.
+     account_number = Erlöskonto, debit_credit_identifier = 'S' (bezieht sich
+     laut Spezifikation auf account_number), contra_account_number = Umbuchungskonto.
+     Kein Steuerschlüssel — 4132/8199/8111 sind Automatikkonten (Vorgabe von
+     Andreas); die Umsatzsteuer leitet DATEV aus dem Konto ab.
+     Negative Margen werden NICHT gebucht (§ 25 UStG kennt keine negative
+     Bemessungsgrundlage) — sie erscheinen nur im Bericht.                    */
+  var AI_TYPE = { we_date:'WE-Datum', we_value:'WE-Wert', vk_date:'VK-Datum', vk_value:'VK-Wert' };
+  var LEN = { posting_description:60, document_field1:36, ai_type:20, ai_content:210, description:30 };
+
+  function aiEntry(type, content){
+    return { additional_information_type: clip(type, LEN.ai_type),
+             additional_information_content: clip(content, LEN.ai_content) };
+  }
+
+  function buildRecord(v, cfg){
+    cfg=cfg||{};
+    var rec={
+      account_number: cfg.revAcc,
+      debit_credit_identifier: 'S',
+      contra_account_number: cfg.rebookAcc,
+      amount: r2(Math.abs(v.marge)),
+      date: isoToDateTime(v.vkIso)
+    };
+    if(v.doc1) rec.document_field1 = clip(v.doc1, LEN.document_field1);
+    if(v.text) rec.posting_description = clip(v.text, LEN.posting_description);
+
+    var ai=[];
+    /* Vorgangsnummer: bei Zusatzinformations-Zuordnung unter derselben Art wie
+       in der Erlösbuchung, bei Buchungstext-Zuordnung unter 'Vorgang'. */
+    var vType = (cfg.mode==='ai' && cfg.aiType) ? cfg.aiType : (cfg.vorgangType||'Vorgang');
+    ai.push(aiEntry(vType, v.value));
+    ai.push(aiEntry(AI_TYPE.we_date, v.we.length>1
+      ? deDate(v.weIso)+' ('+v.we.length+' Buchungen)' : deDate(v.weIso)));
+    ai.push(aiEntry(AI_TYPE.we_value, fmt(v.weSum)+' EUR'));
+    ai.push(aiEntry(AI_TYPE.vk_date, v.rev.length>1
+      ? deDate(v.vkIso)+' ('+v.rev.length+' Buchungen)' : deDate(v.vkIso)));
+    ai.push(aiEntry(AI_TYPE.vk_value, fmt(v.vkSum)+' EUR'));
+    rec.additional_information = ai;
+    return rec;
+  }
+
+  function buildRecords(vorgaenge, cfg){
+    var out=[];
+    for(var i=0;i<vorgaenge.length;i++){
+      var v=vorgaenge[i];
+      if(!v.checked || !v.bookable) continue;
+      out.push({ v:v, rec:buildRecord(v, cfg) });
+    }
+    return out;
+  }
+
+  /* ---------------- Buchungsstapel ---------------- */
+  /* Der Name ist fest: 'Diffbest. Umbuchung {MM}/{YY}' (28 Zeichen, Vorgabe
+     von Andreas). {MM}/{YY} kommen aus dem Buchungsmonat des Stapels.
+     Die Spezifikation verlangt, dass date_from und date_to eines Stapels in
+     EINER Buchungsperiode liegen — deshalb wird standardmäßig je Monat ein
+     eigener Stapel gebildet. */
+  var SEQ_NAME_TPL = 'Diffbest. Umbuchung {MM}/{YY}';
+  function seqNameFor(tpl, mkey){
+    var m=/^(\d{4})-(\d{2})$/.exec(mkey||'');
+    var JJJJ=m?m[1]:'', MM=m?m[2]:'', JJ=m?m[1].slice(2):'';
+    return String(tpl==null?'':tpl)
+      .replace(/\{MM\}/g,MM).replace(/\{JJJJ\}/g,JJJJ).replace(/\{YYYY\}/g,JJJJ)
+      .replace(/\{JJ\}/g,JJ).replace(/\{YY\}/g,JJ);
+  }
+
+  function buildSequences(entries, cfg){
+    cfg=cfg||{};
+    if(!entries.length) return [];
+    var groups=[], map={};
+    if(cfg.split!=='single'){
+      for(var i=0;i<entries.length;i++){
+        var k=monthKey(isoDate(entries[i].rec.date))||'ohne';
+        if(!map[k]){ map[k]={ key:k, entries:[] }; groups.push(map[k]); }
+        map[k].entries.push(entries[i]);
+      }
+      groups.sort(function(a,b){ return a.key<b.key?-1:a.key>b.key?1:0; });
+    }else{
+      groups=[{ key:'', entries:entries.slice() }];
+    }
+    return groups.map(function(g){
+      var isos=g.entries.map(function(e){ return isoDate(e.rec.date); }).filter(Boolean).sort();
+      var from=isos[0]||'', to=isos[isos.length-1]||from;
+      var months={}, mlist=[];
+      for(var i=0;i<isos.length;i++){ var mk=monthKey(isos[i]); if(mk&&!months[mk]){months[mk]=1;mlist.push(mk);} }
+      var desc=seqNameFor(SEQ_NAME_TPL, g.key || monthKey(from));
+      return {
+        key: g.key,
+        months: mlist.sort(),
+        descFull: desc,
+        descCut: desc.length>LEN.description,
+        body: {
+          date_from: isoToDateTime(from),
+          date_to: isoToDateTime(to),
+          description: clip(desc, LEN.description),
+          record_type: 'financial_accounting',
+          accounting_reason: 'independent_from_accounting_reason',
+          is_committed: false,
+          application_information: 'AHA Differenzbesteuerung-Umbuchung v1.2.1',
+          accounting_records: g.entries.map(function(e){ return e.rec; })
+        }
+      };
+    });
+  }
+
+  return {
+    num:num, r2:r2, isoDate:isoDate, deDate:deDate, monthKey:monthKey, monthLabel:monthLabel,
+    clip:clip, fmt:fmt, fmtInt:fmtInt, isoToDateTime:isoToDateTime, germanOffset:germanOffset,
+    toTechnical:toTechnical, toDisplay:toDisplay,
+    SKR_DEFAULTS:SKR_DEFAULTS, defaultsForSkr:defaultsForSkr, defaultAccount:defaultAccount,
+    normKey:normKey, normPosting:normPosting, dedupe:dedupe,
+    signedRevenue:signedRevenue, signedGoods:signedGoods,
+    assignValue:assignValue, aiTypeStats:aiTypeStats, groupByAssignment:groupByAssignment,
+    doneKeys:doneKeys, buildVorgaenge:buildVorgaenge,
+    buildRecord:buildRecord, buildRecords:buildRecords, buildSequences:buildSequences,
+    seqNameFor:seqNameFor, SEQ_NAME_TPL:SEQ_NAME_TPL, AI_TYPE:AI_TYPE, LEN:LEN, EPS:EPS
+  };
+})();
+if(typeof window!=='undefined') window.DBU=DBU;
+if(typeof module!=='undefined' && module.exports) module.exports=DBU;
+/* ===================== CORE-ENDE ===================== */
+</script>
+
+<script>
+'use strict';
+/* ===================== OBERFLÄCHE UND DATEVCONNECT-CLIENT ===================== */
+(function(){
+var D = window.DBU;
+
+var S = {
+  credMode:'include',
+  clients:[], clientId:'', clientLabel:'',
+  fys:[], fyId:'', fy:null, accountLength:4, skr:null,
+  revDelivered:0, revCollapsed:0, umbDelivered:0,
+  revPostings:[], umbPostings:[],
+  aiTypes:[], mode:'text', aiType:'',
+  goodsHits:{}, yearLog:[], goodsDelivered:0,
+  vorgaenge:[], stat:null, noKey:[],
+  filterRejected:false, usedFilter:true,
+  diag:[], posted:[]
+};
+window.__S = S;
+
+/* ---------------- kleine Helfer ---------------- */
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s==null?'':s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+  .replace(/'/g,'&#39;'); }
+function note(cls,html){ return '<div class="notice '+cls+'">'+html+'</div>'; }
+function pill(cls,html){ return '<span class="pill '+cls+'">'+html+'</span>'; }
+function kpi(k,v,h,cls){ return '<div class="kpi '+(cls||'')+'"><div class="k">'+k+'</div>'+
+  '<div class="v">'+v+'</div>'+(h?'<div class="h">'+h+'</div>':'')+'</div>'; }
+function setStatus(id,cls,txt){
+  var icon = cls==='load' ? '<span class="spin"></span>' : '';
+  var c = cls==='load' ? '' : cls;
+  $(id).innerHTML = '<div class="notice '+c+'">'+icon+esc(txt)+'</div>';
+}
+function markDone(id){ var e=$(id); e.classList.add('done'); e.textContent='✓'; }
+function enable(id){ $(id).classList.remove('dim'); }
+function disable(id){ $(id).classList.add('dim'); }
+function diag(line){
+  S.diag.push(line);
+  var el=$('diagLog'); if(el) el.textContent = S.diag.join('\n');
+}
+
+/* ---------------- API-Client (Konventionen aus der CORS-Referenz) ---------------- */
+function humanHint(status){
+  if(status===401||status===403) return ' (Verbindung und CORS sind in Ordnung — die '+
+    'Windows-Anmeldung wurde nicht akzeptiert oder die Berechtigung/Lizenz fehlt. '+
+    'Läuft der DATEV-Arbeitsplatz?)';
+  if(status===404) return ' (Endpunkt nicht verfügbar — häufig nicht lizenziert; '+
+    '/account-postings ist kostenpflichtig.)';
+  if(status===400) return ' (Anfrage abgelehnt — meist ein nicht unterstützter Filter- '+
+    'oder select-Ausdruck.)';
+  return '';
+}
+function humanErr(e){
+  var m=String(e&&e.message||e);
+  if(/Failed to fetch|NetworkError|Load failed/i.test(m))
+    return 'Keine Antwort vom Dienst ('+m+'). Der Browser hat die Antwort verworfen. '+
+      'Mögliche Ursachen: DATEVconnect läuft nicht, falscher Port bzw. falsche Adresse (fest im Quelltext, Block KONFIGURATION), oder CORS wurde abgelehnt. '+
+      'Die genaue Ursache steht nur in der Netzwerk-Konsole des Browsers — dort nach '+
+      '„blocked by CORS policy“ suchen.';
+  return m;
+}
+function baseUrl(){ return DATEVCONNECT_BASE.replace(/\/+$/,'')+'/accounting/v1'; }
+$('baseEcho').textContent = baseUrl();
+function qs(params){
+  return Object.keys(params||{})
+    .filter(function(k){ var v=params[k]; return v!==undefined && v!==null && v!==''; })
+    .map(function(k){ return encodeURIComponent(k)+'='+encodeURIComponent(params[k]); })
+    .join('&');
+}
+function apiGet(path,params){
+  var q=qs(params), url=baseUrl()+path+(q?'?'+q:'');
+  var opts=function(cred){ return { mode:'cors', credentials:cred,
+    headers:{ 'Accept':'application/json' } }; };
+  return fetch(url,opts(S.credMode)).catch(function(e){
+    diag('GET '+url+' → ✗ fetch(credentials='+S.credMode+'): '+e.message);
+    var other = S.credMode==='include' ? 'omit' : 'include';
+    return fetch(url,opts(other)).then(function(r){    /* zweite Hypothese, Fehler nicht verschluckt */
+      S.credMode=other;
+      diag('  ✓ funktioniert mit credentials='+other+' — wird ab jetzt verwendet');
+      return r;
+    });
+  }).then(function(res){
+    if(!res.ok){
+      return res.text().catch(function(){ return ''; }).then(function(t){
+        diag('GET '+url+' → HTTP '+res.status+' '+String(t).slice(0,400));
+        var err=new Error('HTTP '+res.status+humanHint(res.status)+
+          (t?' — '+String(t).slice(0,400):''));
+        err.status=res.status; err.body=t; err.url=url;
+        throw err;
+      });
+    }
+    diag('GET '+url+' → HTTP 200');
+    return res.json();
+  });
+}
+function asArr(d){ return Array.isArray(d) ? d : ((d && (d.value||d.items)) || []); }
+function apiGetList(path,params){ return apiGet(path,params).then(asArr); }
+
+function pathFor(fyId,suffix){
+  return '/clients/'+encodeURIComponent(S.clientId)+
+         '/fiscal-years/'+encodeURIComponent(fyId)+suffix;
+}
+
+/* ---------------- Buchungen eines Kontos in einem Wirtschaftsjahr ---------------- */
+/* expand=all ist zwingend: ohne den Parameter liefert DATEVconnect die
+   Zusatzinformationen nicht mit. Nach dem Abruf wird zusätzlich im Browser auf
+   die Kontonummer gefiltert — falls der Serverfilter ignoriert wurde oder
+   entfallen ist, stimmt das Ergebnis trotzdem. */
+function fetchPostings(fyId, accTech){
+  var useFilter = $('cfgFilter').checked && !S.filterRejected;
+  var params = { expand:'all' };
+  if(useFilter) params.filter = 'account_number eq '+accTech;
+  return apiGetList(pathFor(fyId,'/account-postings'), params)
+    .catch(function(e){
+      if(e.status===400 && useFilter){
+        diag('  Serverfilter abgelehnt (400) — ab jetzt ohne Serverfilter');
+        S.filterRejected=true;
+        return apiGetList(pathFor(fyId,'/account-postings'), { expand:'all' });
+      }
+      throw e;
+    })
+    .then(function(raw){
+      var all=[];
+      for(var i=0;i<raw.length;i++) all.push(D.normPosting(raw[i]));
+      var dd=D.dedupe(all);
+      var mine=[];
+      for(var j=0;j<dd.list.length;j++) if(dd.list[j].account===accTech) mine.push(dd.list[j]);
+      diag('  '+raw.length+' Sätze geliefert, '+dd.collapsed+' doppelt, '+
+           mine.length+' auf Konto '+accTech);
+      return { delivered:raw.length, collapsed:dd.collapsed, list:mine };
+    });
+}
+
+/* =====================================================================
+   1 · MANDANT UND WIRTSCHAFTSJAHR
+   ===================================================================== */
+$('btnConnect').onclick = function(){
+  setStatus('connStatus','load','Mandanten werden gelesen…');
+  return apiGetList('/clients').then(function(list){
+    S.clients=list;
+    if(!S.clients.length){ setStatus('connStatus','warn','Es wurde kein Mandant geliefert.'); return; }
+    S.clients.sort(function(a,b){
+      return String(a.number||'').localeCompare(String(b.number||''),'de',{numeric:true}); });
+    $('selClient').innerHTML = S.clients.map(function(c,i){
+      return '<option value="'+i+'">'+esc((c.number?c.number+' · ':'')+(c.name||c.id))+
+             '</option>'; }).join('');
+    $('selClient').selectedIndex=0;
+    $('selects').style.display='block';
+    setStatus('connStatus','ok',S.clients.length+' Mandanten geladen.');
+    return onClientChange();
+  }).catch(function(e){
+    setStatus('connStatus','err','Mandantenabruf fehlgeschlagen.');
+    $('connStatus').insertAdjacentHTML('beforeend',
+      note('err','<pre>'+esc(String(e.url||baseUrl()))+'\n\n'+esc(humanErr(e))+'</pre>'));
+  });
+};
+
+/* Sequenznummer: eine langsame Antwort zu einer verworfenen Auswahl darf den
+   aktuellen Zustand nicht überschreiben. Die Vorauswahl eines <select> feuert
+   kein change-Ereignis — deshalb wird onClientChange/onFyChange direkt gerufen. */
+var reqSeq=0;
+function onClientChange(){
+  var c=S.clients[+$('selClient').value]; if(!c) return Promise.resolve();
+  var my=++reqSeq;
+  S.clientId=c.id; S.clientLabel=(c.number?c.number+' · ':'')+(c.name||c.id);
+  resetFrom2();
+  $('fyInfo').innerHTML = '<div class="notice"><span class="spin"></span>'+
+    'Wirtschaftsjahre werden gelesen…</div>';
+  return apiGetList('/clients/'+encodeURIComponent(c.id)+'/fiscal-years')
+    .then(function(fys){
+      if(my!==reqSeq) return;
+      fys.sort(function(a,b){ return String(b.id||'').localeCompare(String(a.id||'')); });
+      S.fys=fys;
+      if(!fys.length){
+        $('fyInfo').innerHTML=note('warn','Für diesen Mandanten wurde kein Wirtschaftsjahr geliefert.');
+        return;
+      }
+      $('selFy').innerHTML = fys.map(function(f,i){
+        return '<option value="'+i+'">'+esc(D.deDate(D.isoDate(f.begin))+' – '+
+               D.deDate(D.isoDate(f.end)))+'</option>'; }).join('');
+      $('selFy').selectedIndex=0;
+      onFyChange();
+    }).catch(function(e){
+      if(my!==reqSeq) return;
+      $('fyInfo').innerHTML=note('err','<b>Wirtschaftsjahre konnten nicht gelesen werden.</b>'+
+        '<pre>'+esc(String(e.url||''))+'\n\n'+esc(humanErr(e))+'</pre>');
+    });
+}
+$('selClient').onchange = onClientChange;
+
+function onFyChange(){
+  var f=S.fys[+$('selFy').value]; if(!f) return;
+  S.fy=f; S.fyId=f.id;
+  S.accountLength = D.num(f.account_length) || 4;
+  S.skr = D.defaultsForSkr(f.account_system);
+  resetFrom3();
+
+  var locked = f.is_locked ? ' '+pill('warn','geschütztes Wirtschaftsjahr') : '';
+  $('fyInfo').innerHTML =
+    '<div class="notice"><b>'+esc(S.clientLabel)+'</b> · '+
+    esc(D.deDate(D.isoDate(f.begin)))+' bis '+esc(D.deDate(D.isoDate(f.end)))+' · '+
+    'Kontenrahmen <code>'+esc(String(f.account_system==null?'—':f.account_system))+'</code>'+
+    (S.skr?' ('+S.skr.label+')':' — <b>nicht zugeordnet</b>')+' · '+
+    'Sachkontenlänge <code>'+S.accountLength+'</code>'+locked+'</div>';
+
+  if(S.skr){
+    $('accRev').value    = D.defaultAccount(S.skr.revenue, S.accountLength);
+    $('accRebook').value = D.defaultAccount(S.skr.rebook,  S.accountLength);
+    $('accGoods').value  = D.defaultAccount(S.skr.goods,   S.accountLength);
+    $('accNote').innerHTML = note('','Vorbelegt für <b>'+S.skr.label+'</b>. '+
+      'Weicht der Mandant ab, tragen Sie die tatsächlich verwendeten Konten ein.');
+  }else{
+    $('accRev').value=''; $('accRebook').value=''; $('accGoods').value='';
+    $('accNote').innerHTML = note('warn','<b>Der Kontenrahmen '+
+      esc(String(f.account_system==null?'(nicht geliefert)':f.account_system))+
+      ' ist dem Tool nicht bekannt.</b> Hinterlegt sind nur SKR04, SKR03 und SKR51. '+
+      'Bitte die drei Konten von Hand eintragen.');
+  }
+  markDone('s1'); enable('card2'); enable('card3');
+  echoAccounts();
+}
+$('selFy').onchange = onFyChange;
+
+function resetFrom2(){
+  S.fys=[]; S.fy=null; S.fyId='';
+  $('selFy').innerHTML=''; $('fyInfo').innerHTML='';
+  $('accRev').value=''; $('accRebook').value=''; $('accGoods').value='';
+  $('accNote').innerHTML='';
+  disable('card2'); resetFrom3();
+}
+function resetFrom3(){
+  S.revPostings=[]; S.umbPostings=[]; S.aiTypes=[]; S.goodsHits={}; S.yearLog=[];
+  S.vorgaenge=[]; S.stat=null; S.noKey=[]; S.filterRejected=false;
+  $('fetchStatus').innerHTML=''; $('fetchResult').innerHTML='';
+  $('assignBox').style.display='none'; $('assignPreview').innerHTML='';
+  $('matchStatus').innerHTML=''; $('matchResult').innerHTML='';
+  $('bookResult').innerHTML=''; $('postStatus').innerHTML=''; $('previewBox').innerHTML='';
+  $('btnPost').disabled=true;
+  disable('card3'); disable('card4'); disable('card5');
+}
+
+/* =====================================================================
+   2 · KONTEN
+   ===================================================================== */
+function accInput(id){ return String($(id).value||'').replace(/\D/g,''); }
+function accTech(id){ return D.toTechnical(accInput(id), S.accountLength); }
+function echoAccounts(){
+  [['accRev','echoRev'],['accRebook','echoRebook'],['accGoods','echoGoods']].forEach(function(p){
+    var v=accInput(p[0]);
+    $(p[1]).innerHTML = v ? 'technisch: <code>'+D.toTechnical(v,S.accountLength)+'</code>' : '';
+  });
+}
+['accRev','accRebook','accGoods'].forEach(function(id){
+  $(id).oninput = function(){ echoAccounts(); };
+});
+function accountsValid(){
+  var a=accTech('accRev'), b=accTech('accRebook'), c=accTech('accGoods');
+  if(!a||!b||!c) return 'Bitte alle drei Konten eintragen.';
+  if(a===b) return 'Erlöskonto und Umbuchungskonto dürfen nicht dasselbe Konto sein.';
+  if(a===c||b===c) return 'Das Wareneingangskonto muss sich von beiden Erlöskonten unterscheiden.';
+  return '';
+}
+
+/* =====================================================================
+   3 · BUCHUNGEN ABRUFEN
+   ===================================================================== */
+$('btnFetch').onclick = function(){
+  var bad=accountsValid();
+  if(bad){ $('fetchStatus').innerHTML=note('err','<b>'+esc(bad)+'</b>'); return; }
+  var rev=accTech('accRev'), umb=accTech('accRebook');
+  S.filterRejected=false;
+  S.usedFilter=$('cfgFilter').checked;
+  setStatus('fetchStatus','load','Erlöskonto wird gelesen…');
+  diag('--- Abruf Erlöskonto '+rev+' im WJ '+S.fyId+' ---');
+  return fetchPostings(S.fyId, rev).then(function(r){
+    S.revPostings=r.list; S.revDelivered=r.delivered; S.revCollapsed=r.collapsed;
+    setStatus('fetchStatus','load','Umbuchungskonto wird gelesen…');
+    diag('--- Abruf Umbuchungskonto '+umb+' im WJ '+S.fyId+' ---');
+    return fetchPostings(S.fyId, umb);
+  }).then(function(r){
+    S.umbPostings=r.list; S.umbDelivered=r.delivered;
+    S.aiTypes = D.aiTypeStats(S.revPostings);
+    renderFetch();
+    setStatus('fetchStatus','ok',S.revPostings.length+' Buchungen auf dem Erlöskonto, '+
+      S.umbPostings.length+' auf dem Umbuchungskonto.');
+    markDone('s3'); showAssign(); enable('card4');
+  }).catch(function(e){
+    setStatus('fetchStatus','err','Abruf fehlgeschlagen.');
+    $('fetchResult').innerHTML=note('err','<pre>'+esc(String(e.url||''))+'\n\n'+
+      esc(humanErr(e))+'</pre>');
+  });
+};
+
+function renderFetch(){
+  var h='<div class="kpis">'+
+    kpi('Erlöskonto '+esc(accInput('accRev')), D.fmtInt(S.revPostings.length),
+        'von '+D.fmtInt(S.revDelivered)+' gelieferten Sätzen','accent')+
+    kpi('Umbuchungskonto '+esc(accInput('accRebook')), D.fmtInt(S.umbPostings.length),
+        'bereits umgebuchte Vorgänge')+
+    kpi('Zusatzinformationen', D.fmtInt(S.aiTypes.length),
+        S.aiTypes.length?'verschiedene Arten gefunden':'keine geliefert')+
+  '</div>';
+
+  h+='<details class="info" id="fetchScopeBox"><summary>Umfang des Abrufs</summary>'+
+    '<p class="sub" style="margin:0">'+
+    (S.filterRejected
+      ? 'Der Serverfilter auf die Kontonummer wurde <b>abgelehnt</b> — es wurden <b>alle</b> '+
+        'Kontobuchungen des Wirtschaftsjahres geladen und im Browser eingegrenzt.'
+      : (S.usedFilter ? 'Mit Serverfilter <code>account_number eq …</code>.'
+                      : 'Ohne Serverfilter — alle Kontobuchungen des Wirtschaftsjahres.'))+
+    ' Immer mit <code>expand=all</code>, sonst kommen die Zusatzinformationen nicht mit. '+
+    'Der Endpunkt <code>/account-postings</code> kennt laut Accounting-1.7.4.4.json '+
+    '<b>keine</b> Parameter <code>skip</code>/<code>top</code> — es gibt weder Blätterung noch '+
+    'einen Hinweis auf eine unvollständige Lieferung. Buchungen mit Fehlerkennzeichen und '+
+    'Buchungsvorschläge liefert der Endpunkt laut Spezifikation nicht mit.</p></details>';
+
+  if(!S.revPostings.length)
+    h+=note('warn','<b>Auf dem Erlöskonto liegt in diesem Wirtschaftsjahr keine Buchung.</b> '+
+      'Prüfen Sie die Kontonummer und das Wirtschaftsjahr.');
+
+  if($('cfgDiag').checked) h+=rawTable('Rohwerte Erlöskonto', S.revPostings);
+  $('fetchResult').innerHTML=h;
+}
+
+function rawTable(title, list){
+  var rows=list.slice(0,200).map(function(p){
+    return '<tr><td class="mono">'+esc(p.id.slice(0,12))+'</td><td>'+esc(D.deDate(p.iso))+'</td>'+
+      '<td class="num">'+(p.rawDebit==null?pill('mut','—'):esc(String(p.rawDebit)))+'</td>'+
+      '<td class="num">'+(p.rawCredit==null?pill('mut','—'):esc(String(p.rawCredit)))+'</td>'+
+      '<td>'+esc(p.doc1)+'</td><td>'+esc(p.text)+'</td>'+
+      '<td>'+(p.gu?pill('warn','GU'):'')+'</td>'+
+      '<td>'+p.ai.map(function(a){ return esc(a.type)+'='+esc(a.content); }).join('<br>')+'</td></tr>';
+  }).join('');
+  return '<details id="rawBox"><summary>'+esc(title)+' \u2014 Rohwerte ('+list.length+
+    (list.length>200?', erste 200':'')+')</summary><div class="tblscroll"><table>'+
+    '<thead><tr><th>id</th><th>Belegdatum</th><th class="num">amount_debit</th>'+
+    '<th class="num">amount_credit</th><th>Belegfeld 1</th><th>Buchungstext</th><th>GU</th>'+
+    '<th>Zusatzinformationen</th></tr></thead><tbody>'+rows+'</tbody></table></div></details>';
+}
+
+/* ---------------- Zuordnungsfeld ---------------- */
+function showAssign(){
+  $('assignBox').style.display='block';
+  var opts = S.aiTypes.map(function(t){
+    return '<option value="'+esc(t.type)+'">'+esc(t.type)+' · '+t.count+
+           ' Buchungen · Beispiel: '+esc(String(t.sample).slice(0,40))+'</option>'; }).join('');
+  $('selAiType').innerHTML = opts || '<option value="">(keine Zusatzinformation geliefert)</option>';
+  $('selAiType').disabled = !S.aiTypes.length;
+  onFieldChange();
+}
+function onFieldChange(){
+  S.mode = $('selField').value;
+  $('aiWrap').style.display = S.mode==='ai' ? '' : 'none';
+  S.aiType = S.mode==='ai' ? String($('selAiType').value||'') : '';
+  renderAssignPreview();
+}
+$('selField').onchange = onFieldChange;
+$('selAiType').onchange = function(){ S.aiType=String($('selAiType').value||''); renderAssignPreview(); };
+
+function renderAssignPreview(){
+  if(S.mode==='ai' && !S.aiTypes.length){
+    $('assignPreview').innerHTML=note('err','<b>Es wurde keine Zusatzinformation geliefert.</b> '+
+      'Entweder tragen die Buchungen keine, oder der Abruf lief ohne <code>expand=all</code> — '+
+      'letzteres ist hier ausgeschlossen. Bitte den Buchungstext als Zuordnungsfeld wählen.');
+    return;
+  }
+  var g=D.groupByAssignment(S.revPostings, S.mode, S.aiType);
+  var sample=g.groups.slice(0,8).map(function(x){
+    return '<tr><td class="mono">'+esc(x.value)+'</td><td class="mono">'+esc(x.key)+'</td>'+
+      '<td class="num">'+x.postings.length+'</td></tr>'; }).join('');
+  $('assignPreview').innerHTML =
+    '<div class="kpis">'+
+      kpi('Vorgänge erkannt', D.fmtInt(g.groups.length), 'verschiedene Zuordnungen','accent')+
+      kpi('ohne Zuordnung', D.fmtInt(g.noKey.length),
+          g.noKey.length?'bleiben unberücksichtigt':'alle Buchungen tragen einen Wert')+
+    '</div>'+
+    (g.noKey.length ? note('warn','<b>'+g.noKey.length+' Buchung(en) auf dem Erlöskonto tragen '+
+      'in diesem Feld keinen Wert.</b> Sie können keinem Vorgang zugeordnet werden und werden '+
+      'weder gewertet noch gebucht.') : '')+
+    (g.groups.length ? '<details class="info" id="assignSampleBox">'+
+      '<summary>Beispiele und Vergleichsregel</summary>'+
+      '<div class="tblbox"><table><thead><tr><th>Wert im Feld</th>'+
+      '<th>Vergleichsschlüssel</th><th class="num">Buchungen</th></tr></thead><tbody>'+
+      sample+'</tbody></table></div>'+
+      '<p class="sub">Verglichen wird der Schlüssel: Groß-/Kleinschreibung egal, Leer- und '+
+      'Sonderzeichen entfallen. Der ganze Feldinhalt muss übereinstimmen — kein Teiltreffer.</p>'+
+      '</details>'
+      : '');
+}
+
+/* =====================================================================
+   4 · WARENEINGANG SUCHEN
+   ===================================================================== */
+$('btnMatch').onclick = function(){
+  if(S.mode==='ai' && !S.aiType){
+    $('matchStatus').innerHTML=note('err','<b>Bitte eine Art der Zusatzinformation wählen.</b>');
+    return;
+  }
+  var goods=accTech('accGoods');
+  var idx = -1;
+  for(var i=0;i<S.fys.length;i++) if(S.fys[i].id===S.fyId){ idx=i; break; }
+  if(idx<0) idx=0;
+  var years = S.fys.slice(idx);          /* Liste ist absteigend sortiert */
+
+  /* offene Zuordnungen = alle Vorgänge des Erlöskontos, die noch nicht umgebucht sind */
+  var g=D.groupByAssignment(S.revPostings, S.mode, S.aiType);
+  var done=D.doneKeys(S.umbPostings, S.mode, S.aiType, 'Vorgang');
+  var open={}, openCount=0;
+  for(var k=0;k<g.groups.length;k++){
+    if(!done[g.groups[k].key]){ open[g.groups[k].key]=true; openCount++; }
+  }
+  S.goodsHits={}; S.yearLog=[]; S.goodsDelivered=0;
+  var remaining=openCount;
+  var readAll=$('cfgAllYears').checked;
+
+  if(!openCount){
+    S.vorgaenge=[];
+    finishMatch(g, done, years, 0);
+    return;
+  }
+
+  setStatus('matchStatus','load','Wareneingangskonto wird Wirtschaftsjahr für Wirtschaftsjahr gelesen…');
+  var chain=Promise.resolve(), stopped=false, yearsRead=0;
+  years.forEach(function(fy){
+    chain=chain.then(function(){
+      if(stopped) return;
+      if(!readAll && remaining<=0){ stopped=true; return; }
+      var tech = D.toTechnical(accInput('accGoods'), D.num(fy.account_length)||S.accountLength);
+      var label = String(fy.id||'').slice(0,4);
+      setStatus('matchStatus','load','Wareneingangskonto '+tech+' im Wirtschaftsjahr '+
+        D.deDate(D.isoDate(fy.begin))+' – '+D.deDate(D.isoDate(fy.end))+' …');
+      diag('--- Wareneingang '+tech+' im WJ '+fy.id+' ---');
+      return fetchPostings(fy.id, tech).then(function(r){
+        yearsRead++;
+        S.goodsDelivered+=r.delivered;
+        var gg=D.groupByAssignment(r.list, S.mode, S.aiType);
+        var newKeys=0, hits=0;
+        for(var i=0;i<gg.groups.length;i++){
+          var grp=gg.groups[i];
+          if(!open[grp.key]) continue;                 /* nur offene Vorgänge einsammeln */
+          if(!S.goodsHits[grp.key]){ S.goodsHits[grp.key]=[]; newKeys++; remaining--; }
+          for(var j=0;j<grp.postings.length;j++){
+            S.goodsHits[grp.key].push({ p:grp.postings[j], fyId:fy.id, fyLabel:label });
+            hits++;
+          }
+        }
+        S.yearLog.push({ fyId:fy.id, label:label, tech:tech, delivered:r.delivered,
+                         onAccount:r.list.length, newKeys:newKeys, hits:hits,
+                         remaining:Math.max(remaining,0) });
+      }).catch(function(e){
+        S.yearLog.push({ fyId:fy.id, label:label, tech:tech, error:humanErr(e),
+                         status:e.status||0, remaining:Math.max(remaining,0) });
+        diag('  Wirtschaftsjahr '+fy.id+' konnte nicht gelesen werden: '+e.message);
+      });
+    });
+  });
+  return chain.then(function(){
+    finishMatch(g, done, years, yearsRead);
+  }).catch(function(e){
+    setStatus('matchStatus','err','Suche fehlgeschlagen.');
+    $('matchResult').innerHTML=note('err','<pre>'+esc(humanErr(e))+'</pre>');
+  });
+};
+
+function finishMatch(g, done, years, yearsRead){
+  var res = D.buildVorgaenge(S.revPostings, S.umbPostings, S.goodsHits,
+    { mode:S.mode, aiType:S.aiType, vorgangType:'Vorgang' });
+  S.vorgaenge=res.vorgaenge; S.stat=res.stat; S.noKey=res.noKey;
+  /* Vorbelegung des Hakens: buchbar und unauffällig. Auffällige Vorgänge
+     (mehrere Buchungen je Seite, Generalumkehr, uneinheitliches Belegfeld 1)
+     werden bewusst NICHT vorbelegt. */
+  S.vorgaenge.forEach(function(v){
+    v.checked = v.bookable && !v.multi && !v.gu && !v.docMixed;
+  });
+  S.yearsRead=yearsRead; S.yearsTotal=years.length;
+  setStatus('matchStatus','ok', S.stat.ok+' von '+S.stat.total+' Vorgängen sind buchbar.');
+  renderMatch(); markDone('s4'); enable('card5'); renderBook();
+}
+
+function statusPill(v){
+  if(v.status==='ok')       return pill('ok','buchbar');
+  if(v.status==='done')     return pill('mut','schon umgebucht');
+  if(v.status==='noGoods')  return pill('err','kein Wareneingang');
+  if(v.status==='negative') return pill('warn','Negativmarge');
+  if(v.status==='zero')     return pill('mut','Marge 0,00 €');
+  return '';
+}
+function hints(v){
+  var out=[];
+  if(v.multi)    out.push(pill('warn',v.rev.length+' Erlös- / '+v.we.length+' WE-Buchungen'));
+  if(v.gu)       out.push(pill('warn','Generalumkehr enthalten'));
+  if(v.docMixed) out.push(pill('warn','Belegfeld 1 uneinheitlich'));
+  return out.join(' ');
+}
+
+function renderMatch(){
+  var st=S.stat, h='';
+  h+='<div class="kpis">'+
+    kpi('Vorgänge', D.fmtInt(st.total), 'verschiedene Zuordnungen')+
+    kpi('buchbar', D.fmtInt(st.ok), D.fmt(st.sumMarge)+' € Marge gesamt','accent')+
+    kpi('schon umgebucht', D.fmtInt(st.done), 'auf dem Umbuchungskonto gefunden')+
+    kpi('kein Wareneingang', D.fmtInt(st.noGoods), 'nicht buchbar')+
+    kpi('Negativmarge', D.fmtInt(st.negative), 'wird nur gemeldet')+
+    kpi('zu prüfen', D.fmtInt(st.multi+st.gu), 'mehrfach oder Generalumkehr')+
+  '</div>';
+
+  h+='<details class="info" id="scanBox"><summary>Rückwärtslauf \u00b7 '+S.yearsRead+
+    ' von '+S.yearsTotal+' Wirtschaftsjahren gelesen</summary><p class="sub" style="margin:0">'+
+    D.fmtInt(S.goodsDelivered)+' Sätze insgesamt geliefert. '+
+    ($('cfgAllYears').checked
+      ? 'Es wurde <b>jedes</b> Wirtschaftsjahr gelesen.'
+      : 'Der Lauf endete, sobald jede offene Zuordnung mindestens einen Wareneingang hatte — '+
+        '<b>in nicht gelesenen älteren Jahren können weitere Wareneingangsbuchungen zu '+
+        'denselben Vorgängen liegen.</b> Wenn das vorkommen kann, in den Einstellungen '+
+        '„Alle Wirtschaftsjahre lesen“ einschalten und erneut suchen.')+'</p></details>';
+
+  if(st.negative)
+    h+=note('warn','<b>'+st.negative+' Vorgang/Vorgänge mit Negativmarge.</b> Diese werden '+
+      '<b>nicht</b> gebucht: § 25 UStG kennt keine negative Bemessungsgrundlage — eine '+
+      'Negativmarge ist umsatzsteuerlich 0. Die Vorgänge stehen unten zur Ansicht.');
+
+  if(S.noKey.length)
+    h+=note('warn','<b>'+S.noKey.length+' Buchung(en) auf dem Erlöskonto ohne Wert im '+
+      'Zuordnungsfeld.</b> Sie gehören zu keinem Vorgang und bleiben unberücksichtigt.');
+
+  h+='<h3 class="block"><span class="dot"></span>Vorgänge</h3>';
+  h+='<div class="btnrow"><button class="btn sec" id="btnAll">Alle buchbaren markieren</button>'+
+     '<button class="btn sec" id="btnNone">Auswahl aufheben</button></div>';
+  h+='<div class="tblscroll"><table id="vTable"><thead><tr>'+
+     '<th>✓</th><th>Zuordnung</th><th>Verkauf</th><th class="num">VK-Wert</th>'+
+     '<th>Wareneingang</th><th class="num">WE-Wert</th><th class="num">Marge</th>'+
+     '<th>Buchungssatz</th><th>Status</th></tr></thead><tbody>';
+  var revD=accInput('accRev'), umbD=accInput('accRebook');
+  S.vorgaenge.forEach(function(v,i){
+    var cls = v.status==='ok' ? (v.multi||v.gu||v.docMixed ? 'row-warn':'') : 'row-off';
+    h+='<tr class="'+cls+'">'+
+      '<td>'+(v.bookable
+        ? '<input type="checkbox" data-i="'+i+'"'+(v.checked?' checked':'')+'>'
+        : '')+'</td>'+
+      '<td class="mono">'+esc(v.value)+'</td>'+
+      '<td>'+esc(D.deDate(v.vkIso))+(v.rev.length>1?' <span class="pill warn">'+v.rev.length+'</span>':'')+'</td>'+
+      '<td class="num">'+D.fmt(v.vkSum)+'</td>'+
+      '<td>'+(v.weIso?esc(D.deDate(v.weIso)):'—')+
+        (v.weYears.length?' <span class="pill mut">WJ '+esc(v.weYears.join(', '))+'</span>':'')+
+        (v.we.length>1?' <span class="pill warn">'+v.we.length+'</span>':'')+'</td>'+
+      '<td class="num">'+(v.we.length?D.fmt(v.weSum):'—')+'</td>'+
+      '<td class="num"><b>'+D.fmt(v.marge)+'</b></td>'+
+      '<td class="mono">'+(v.status==='ok'
+        ? esc(revD)+' an '+esc(umbD)+' · '+D.fmt(v.marge)
+        : '<span class="pill mut">keine Buchung</span>')+'</td>'+
+      '<td>'+statusPill(v)+' '+hints(v)+'</td></tr>';
+  });
+  h+='</tbody></table></div>';
+
+  if($('cfgDiag').checked) h+=yearTable();
+
+  $('matchResult').innerHTML=h;
+
+  $('vTable').addEventListener('change', function(ev){
+    var t=ev.target; if(!t || t.type!=='checkbox') return;
+    var i=+t.getAttribute('data-i');
+    if(S.vorgaenge[i]){ S.vorgaenge[i].checked = t.checked; renderBook(); }
+  });
+  $('btnAll').onclick = function(){
+    S.vorgaenge.forEach(function(v){ if(v.bookable) v.checked=true; });
+    renderMatch(); renderBook();
+  };
+  $('btnNone').onclick = function(){
+    S.vorgaenge.forEach(function(v){ v.checked=false; });
+    renderMatch(); renderBook();
+  };
+}
+
+function yearTable(){
+  var rows=S.yearLog.map(function(y){
+    if(y.error) return '<tr><td>'+esc(y.label)+'</td><td class="mono">'+y.tech+'</td>'+
+      '<td colspan="4">'+pill('err','Fehler '+(y.status||''))+' '+esc(y.error.slice(0,160))+'</td>'+
+      '<td class="num">'+y.remaining+'</td></tr>';
+    return '<tr><td>'+esc(y.label)+'</td><td class="mono">'+y.tech+'</td>'+
+      '<td class="num">'+D.fmtInt(y.delivered)+'</td><td class="num">'+D.fmtInt(y.onAccount)+'</td>'+
+      '<td class="num">'+y.newKeys+'</td><td class="num">'+y.hits+'</td>'+
+      '<td class="num">'+y.remaining+'</td></tr>';
+  }).join('');
+  return '<details id="yearBox"><summary>Trefferzahlen je Wirtschaftsjahr</summary>'+
+    '<div class="tblbox"><table><thead><tr><th>WJ</th><th>Konto technisch</th>'+
+    '<th class="num">geliefert</th><th class="num">auf dem Konto</th>'+
+    '<th class="num">neue Zuordnungen</th><th class="num">Buchungen übernommen</th>'+
+    '<th class="num">noch offen</th></tr></thead><tbody>'+
+    rows+'</tbody></table></div></details>';
+}
+
+/* =====================================================================
+   5 · ÜBERGABE
+   ===================================================================== */
+function recCfg(){
+  return { revAcc:accTech('accRev'), rebookAcc:accTech('accRebook'),
+           mode:S.mode, aiType:S.aiType, vorgangType:'Vorgang' };
+}
+function seqCfg(){ return { split: $('cfgSplit').checked ? 'month' : 'single' }; }
+
+function renderBook(){
+  var entries=D.buildRecords(S.vorgaenge, recCfg());
+  var seqs=D.buildSequences(entries, seqCfg());
+  var sum=0; entries.forEach(function(e){ sum=D.r2(sum+e.rec.amount); });
+
+  var h='<div class="kpis">'+
+    kpi('markierte Vorgänge', D.fmtInt(entries.length), '', 'accent')+
+    kpi('Buchungssätze', D.fmtInt(entries.length), 'ein Satz je Vorgang')+
+    kpi('Summe', D.fmt(sum)+' €', 'umgebuchte Marge')+
+    kpi('Buchungsstapel', D.fmtInt(seqs.length),
+        $('cfgSplit').checked?'je Buchungsmonat einer':'ein Stapel')+
+  '</div>';
+
+  if(!entries.length){
+    h+=note('warn','Es ist kein buchbarer Vorgang markiert.');
+    $('btnPost').disabled=true;
+  }else{
+    h+='<details id="seqBox"><summary>'+seqs.length+' Buchungsstapel im Einzelnen</summary>'+
+       '<div class="tblbox"><table><thead><tr><th>Stapel</th><th>Zeitraum</th>'+
+       '<th class="num">Sätze</th><th>Monate</th></tr></thead><tbody>'+
+      seqs.map(function(s){
+        return '<tr><td class="mono">'+esc(s.body.description)+'</td>'+
+          '<td>'+esc(D.deDate(D.isoDate(s.body.date_from)))+' – '+
+                 esc(D.deDate(D.isoDate(s.body.date_to)))+'</td>'+
+          '<td class="num">'+s.body.accounting_records.length+'</td>'+
+          '<td>'+s.months.map(D.monthLabel).join(', ')+
+            (s.months.length>1?' '+pill('warn','mehrere Perioden'):'')+'</td></tr>';
+      }).join('')+'</tbody></table></div></details>';
+    var multi=seqs.some(function(s){ return s.months.length>1; });
+    if(multi) h+=note('warn','<b>Ein Stapel umfasst mehrere Buchungsmonate.</b> Die '+
+      'Spezifikation verlangt, dass <code>date_from</code> und <code>date_to</code> in '+
+      '<b>einer</b> Buchungsperiode liegen — DATEV kann die Übergabe ablehnen. In den '+
+      'Einstellungen „Je Buchungsmonat einen eigenen Stapel“ einschalten.');
+    h+=note('warn','<b>Ohne Steuerschlüssel.</b> Die Umsatzsteuer leitet DATEV aus dem '+
+      'Umbuchungskonto als Automatikkonto ab. <b>Beim ersten Echtlauf am Kontoblatt prüfen, '+
+      'dass sie gerechnet wurde</b> — an diesem System nicht nachgemessen.');
+    $('btnPost').disabled=false;
+  }
+  $('bookResult').innerHTML=h;
+}
+
+$('btnPreview').onclick = function(){
+  var entries=D.buildRecords(S.vorgaenge, recCfg());
+  if(!entries.length){ $('previewBox').innerHTML=note('warn','Nichts markiert.'); return; }
+  var seqs=D.buildSequences(entries, seqCfg());
+  var json=JSON.stringify(seqs.length===1?seqs[0].body:seqs.map(function(s){return s.body;}),null,2);
+  $('previewBox').innerHTML='<details open id="jsonBox"><summary>JSON-Rumpf des POST</summary>'+
+    '<pre style="white-space:pre-wrap;word-break:break-word;font-family:var(--mono);'+
+    'font-size:.76rem;max-height:420px;overflow:auto">'+esc(json)+'</pre></details>';
+};
+
+$('btnPost').onclick = function(){
+  var entries=D.buildRecords(S.vorgaenge, recCfg());
+  if(!entries.length) return;
+  var seqs=D.buildSequences(entries, seqCfg());
+  var msg='Umbuchung übergeben?\n\n'+entries.length+' Buchungssätze\n'+
+          seqs.length+' Buchungsstapel\nFestschreiben: nein';
+  if(typeof confirm==='function' && !confirm(msg)) return;
+
+  $('btnPost').disabled=true;
+  $('postStatus').innerHTML='<div class="notice"><span class="spin"></span>'+
+    'Buchungsstapel werden übergeben…</div>';
+  var url=baseUrl()+pathFor(S.fyId,'/accounting-sequences');
+  var done=[], chain=Promise.resolve();
+  seqs.forEach(function(s){
+    chain=chain.then(function(){
+      return fetch(url,{ method:'POST', mode:'cors', credentials:S.credMode,
+        headers:{ 'Content-Type':'application/json;charset=utf-8', 'Accept':'application/json' },
+        body: JSON.stringify(s.body) }).then(function(res){
+        if(!res.ok) return res.text().catch(function(){return '';}).then(function(t){
+          diag('POST '+url+' → HTTP '+res.status+' '+String(t).slice(0,400));
+          var err=new Error('HTTP '+res.status+humanHint(res.status)+
+            (t?' — '+String(t).slice(0,400):''));
+          throw err;
+        });
+        diag('POST '+url+' → HTTP '+res.status+' ('+s.body.description+')');
+        done.push(s.body.description+' ('+s.body.accounting_records.length+' Sätze)');
+        return res.text().catch(function(){ return ''; });
+      });
+    });
+  });
+  return chain.then(function(){
+    S.posted=S.posted.concat(done);
+    $('postStatus').innerHTML=note('ok','<b>'+done.length+' Buchungsstapel übergeben:</b> '+
+      esc(done.join(' · '))+'.<div style="margin-top:9px"><b>Die Stapel stehen jetzt in '+
+      'der DATEV-Stapelverarbeitung</b> — sie sind nicht festgeschrieben und dort noch prüfbar. '+
+      'Bitte dort verarbeiten.</div>');
+  }).catch(function(e){
+    $('postStatus').innerHTML=note('err','<b>Übergabe fehlgeschlagen.</b>'+
+      (done.length
+        ? ' <b>'+done.length+' Stapel wurden vorher bereits übergeben und stehen in DATEV:</b> '+
+          esc(done.join(' · '))+'. Der Rest wurde <b>nicht</b> gebucht.'
+        : ' Es wurde <b>nichts</b> gebucht.')+
+      '<pre>POST '+esc(url)+'\n\n'+esc(humanErr(e))+'</pre>');
+    if(done.length) S.posted=S.posted.concat(done);
+    $('btnPost').disabled=false;
+  });
+};
+
+/* ---------------- Expertenansicht ---------------- */
+$('cfgDiag').onchange = function(){
+  $('diagWrap').style.display = this.checked ? 'block' : 'none';
+  if(this.checked) $('diagLog').textContent = S.diag.join('\n');
+  if(S.revPostings.length) renderFetch();
+  if(S.vorgaenge.length) renderMatch();
+};
+$('cfgSplit').onchange = function(){ if(S.vorgaenge.length) renderBook(); };
+$('cfgAllYears').onchange = function(){
+  if(S.vorgaenge.length) $('matchStatus').innerHTML=note('warn',
+    'Die Einstellung wirkt erst beim nächsten Klick auf „Wareneingang suchen“.');
+};
+
+/* Beim Drucken werden alle Klappbereiche geöffnet und danach wieder zurückgestellt —
+   zugeklappter Inhalt wird sonst nicht mitgedruckt. */
+var printOpened=[];
+window.addEventListener('beforeprint', function(){
+  printOpened=[];
+  var ds=document.querySelectorAll('details');
+  for(var i=0;i<ds.length;i++) if(!ds[i].open){ printOpened.push(ds[i]); ds[i].open=true; }
+});
+window.addEventListener('afterprint', function(){
+  for(var i=0;i<printOpened.length;i++) printOpened[i].open=false;
+  printOpened=[];
+});
+
+window.__DBU_UI = { S:S, renderMatch:renderMatch, renderBook:renderBook,
+                    finishMatch:finishMatch, recCfg:recCfg, seqCfg:seqCfg };
+})();
+</script>
+</body>
+</html>

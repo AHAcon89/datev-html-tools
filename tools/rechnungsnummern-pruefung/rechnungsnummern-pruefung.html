@@ -1,0 +1,2131 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rechnungsnummern-Prüfung · Debitoren · DATEVconnect</title>
+<meta name="description" content="Prüft die Rechnungsnummern der Debitoren auf Fortlaufigkeit. Grundlage sind die Kontobuchungen mit einem Debitorenkonto im Soll; die Rechnungsnummer steht in Belegfeld 1. Die Stelle, ab der die Nummer fortlaufend ist, ist einstellbar. Ergebnis: fehlende Nummern und Nummern, die nicht in das Schema passen. Aus den fehlenden Nummern entsteht eine Klärungs-E-Mail an den Mandanten, die per mailto-Link an Outlook übergeben wird; Briefanrede und Adresse stammen aus den zentralen Mandantenstammdaten. Single-File, läuft lokal aus dem Dateisystem.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23B40F1B'/%3E%3Cpath d='M7 8h13l5 5v11a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1z' fill='%23fff'/%3E%3C/svg%3E">
+<style>
+:root{
+  --aha-red:#B40F1B; --aha-coral:#FF5559; --aha-ink:#2D2D2D;
+  --aha-paper:#FBFAF8; --aha-white:#FFFFFF;
+  --muted:rgba(45,45,45,.60); --border:rgba(45,45,45,.12); --border-str:rgba(45,45,45,.22);
+  --gradient:linear-gradient(135deg,#B40F1B 0%,#FF5559 100%);
+  --font:'Figtree',system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,'Courier New',monospace;
+  --r-card:24px; --r-btn:12px; --r-chip:8px;
+  --shadow:0 8px 30px rgba(45,45,45,.08);
+  --ok:#166534; --ok-bg:#EDF7F0; --ok-bd:#BFE0CB;
+  --warn:#8A5300; --warn-bg:#FDF5E7; --warn-bd:#EDD9AC;
+  --err:#B40F1B; --err-bg:#FBECEC; --err-bd:#F0C6C6;
+  --info-bg:#F3F4F6;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:var(--font);font-weight:500;color:var(--aha-ink);background:var(--aha-paper);
+     line-height:1.5;-webkit-font-smoothing:antialiased;font-size:15px}
+h1,h2,h3,h4{font-weight:800;line-height:1.15;letter-spacing:-.01em;margin:0}
+/* Für 16:9-Bildschirme gebaut: die Breite wird ausgenutzt, die Höhe ist das knappe Gut.
+   Deshalb breiter Satzspiegel, flacher Kopf, zwei Spalten für die kurzen Schritte und
+   Tabellen, die an der Fensterhöhe hängen statt an einer festen Pixelzahl. */
+.wrap{max-width:1700px;margin:0 auto;padding:0 28px 48px}
+.cols2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
+.cols2.wide-left{grid-template-columns:minmax(0,5fr) minmax(0,7fr)}
+@media (max-width:1180px){ .cols2,.cols2.wide-left{grid-template-columns:minmax(0,1fr)} }
+
+/* ---------- Kopf ---------- */
+header.hero{background:var(--gradient);color:#fff;padding:20px 0 18px;margin-bottom:22px}
+header.hero .wrap{padding-bottom:0}
+.brand{display:flex;align-items:center;gap:12px;font-weight:800;font-size:.82rem;
+       letter-spacing:.12em;text-transform:uppercase;opacity:.92}
+.brand .mark{width:26px;height:26px;border-radius:7px;background:rgba(255,255,255,.18);
+       display:grid;place-items:center;flex:0 0 auto}
+.brand .mark svg{width:16px;height:16px;display:block}
+header.hero h1{font-size:clamp(1.4rem,1.9vw,1.95rem);margin:9px 0 6px}
+header.hero p{margin:0;max-width:135ch;opacity:.95;font-size:.9rem;line-height:1.45}
+.hero-note{margin-top:9px;display:inline-block;background:rgba(45,45,45,.22);
+       border-radius:var(--r-chip);padding:5px 11px;font-size:.77rem}
+/* Der Kopf hat weiße Schrift auf Rot. Die allgemeine code-Regel weiter unten setzt einen
+   hellen Hintergrund — im Kopf wäre das weiß auf hellgrau, also unlesbar. Hier deshalb
+   eine eigene Auszeichnung mit durchscheinendem Weiß und weißer Schrift. */
+header.hero .wrap code{font-family:var(--mono);font-size:.9em;color:#fff;
+       background:rgba(255,255,255,.20);border:1px solid rgba(255,255,255,.42);
+       border-radius:4px;padding:1px 5px}
+
+/* Werbeblock: aus welchem Format dieses Tool entstanden ist. Im Druck ausgeblendet. */
+.promo{margin-top:14px;display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;
+       background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.38);
+       border-radius:var(--r-btn);padding:12px 16px}
+.promo .tag{font-weight:800;text-transform:uppercase;letter-spacing:.1em;font-size:.7rem;
+       background:rgba(255,255,255,.24);border-radius:var(--r-chip);padding:5px 10px;flex:0 0 auto}
+.promo p{margin:0;flex:1 1 420px;font-size:.86rem;opacity:.96;line-height:1.45}
+.promo a.cta{color:#fff;font-weight:800;font-size:.88rem;background:rgba(45,45,45,.30);
+       border:1px solid rgba(255,255,255,.5);border-radius:var(--r-btn);padding:10px 18px;
+       text-decoration:none;white-space:nowrap;flex:0 0 auto;transition:background .18s ease}
+.promo a.cta:hover{background:#fff;color:var(--aha-red);border-color:#fff}
+
+/* ---------- Karten ---------- */
+.card{background:var(--aha-white);border-radius:var(--r-card);box-shadow:var(--shadow);
+      padding:20px 24px;margin-bottom:20px;border:1px solid var(--border)}
+.card.dim{opacity:.45;pointer-events:none;filter:saturate(.4)}
+.card > h2{font-size:1.1rem;display:flex;align-items:center;gap:11px;margin-bottom:5px}
+.step{width:28px;height:28px;border-radius:50%;background:var(--aha-red);color:#fff;
+      font-size:.85rem;font-weight:800;display:grid;place-items:center;flex:0 0 auto}
+.step.done{background:var(--ok)}
+.sub{color:var(--muted);font-size:.85rem;margin:0 0 14px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--aha-red);display:inline-block;
+     margin-right:8px;vertical-align:.12em;flex:0 0 auto}
+h3.block{font-size:1rem;margin:20px 0 6px;padding-top:15px;border-top:1px solid var(--border)}
+h3.block:first-of-type{border-top:none;padding-top:0}
+
+/* ---------- Formulare ---------- */
+label{display:block;font-size:.78rem;font-weight:800;letter-spacing:.02em;
+      color:var(--muted);text-transform:uppercase;margin-bottom:5px}
+input[type=text],input[type=number],select,textarea{
+  font-family:var(--font);font-weight:500;font-size:.94rem;color:var(--aha-ink);
+  background:#fff;border:1px solid var(--border-str);border-radius:var(--r-btn);
+  padding:9px 12px;width:100%}
+textarea{resize:vertical;line-height:1.45}
+textarea#mailBodyTpl{height:min(38vh,420px)}
+textarea#mailBodyOut{height:min(54vh,620px)}
+textarea#cfgSender{height:70px}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--aha-red);outline-offset:1px;border-color:transparent}
+select:disabled{background:var(--info-bg);color:var(--muted);cursor:progress}
+@keyframes fyflash{0%{box-shadow:0 0 0 0 rgba(180,15,27,.45)}100%{box-shadow:0 0 0 9px rgba(180,15,27,0)}}
+.notice.flash{animation:fyflash .55s ease-out}
+input.bad{border-color:var(--aha-red);background:var(--err-bg)}
+.grid{display:grid;gap:16px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+.field .hint{font-size:.76rem;color:var(--muted);margin-top:4px;line-height:1.4}
+.field .hint code,.wrap p code,li code,td code,.sub code,.notice code{font-family:var(--mono);
+      font-size:.9em;background:var(--info-bg);border:1px solid var(--border);border-radius:4px;
+      padding:1px 4px}
+.switch{display:flex;align-items:flex-start;gap:11px;background:var(--aha-paper);
+      border:1px solid var(--border);border-radius:var(--r-btn);padding:12px 14px}
+.switch input{width:18px;height:18px;margin:2px 0 0;flex:0 0 auto;accent-color:var(--aha-red)}
+.switch .t{font-weight:800;font-size:.92rem}
+.switch .d{font-size:.79rem;color:var(--muted);line-height:1.45}
+
+/* ---------- Buttons ---------- */
+.btn{font-family:var(--font);font-weight:800;font-size:.92rem;border-radius:var(--r-btn);
+     padding:11px 20px;border:none;cursor:pointer;background:var(--aha-red);color:#fff;
+     display:inline-flex;align-items:center;gap:9px;transition:background .18s ease}
+.btn:hover:not(:disabled){background:var(--aha-coral)}
+.btn:disabled{opacity:.42;cursor:not-allowed}
+.btn.sec{background:transparent;color:var(--aha-red);border:1.5px solid var(--aha-red);padding:9.5px 18px}
+.btn.sec:hover:not(:disabled){background:var(--aha-red);color:#fff}
+.btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--border-str);
+     font-weight:500;padding:9px 14px}
+.btn.ghost:hover:not(:disabled){background:var(--info-bg);color:var(--aha-ink)}
+.btnrow{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:14px}
+
+/* ---------- Meldungen ---------- */
+.notice{border-radius:var(--r-btn);padding:11px 14px;font-size:.86rem;margin:11px 0 0;
+        border:1px solid var(--border);background:var(--info-bg)}
+.notice.ok{background:var(--ok-bg);border-color:var(--ok-bd);color:var(--ok)}
+.notice.warn{background:var(--warn-bg);border-color:var(--warn-bd);color:var(--warn)}
+.notice.err{background:var(--err-bg);border-color:var(--err-bd);color:var(--err)}
+.notice b{font-weight:800}
+.notice pre{margin:9px 0 0;font-family:var(--mono);font-size:.78rem;white-space:pre-wrap;
+        word-break:break-word;background:rgba(255,255,255,.6);border-radius:6px;padding:8px 10px}
+.pill{display:inline-block;border-radius:99px;padding:2px 10px;font-size:.74rem;font-weight:800;
+      letter-spacing:.02em}
+.pill.ok{background:var(--ok-bg);color:var(--ok)} .pill.warn{background:var(--warn-bg);color:var(--warn)}
+.pill.err{background:var(--err-bg);color:var(--err)} .pill.neutral{background:var(--info-bg);color:var(--muted)}
+.spin{width:13px;height:13px;border:2px solid rgba(180,15,27,.25);border-top-color:var(--aha-red);
+      border-radius:50%;display:inline-block;animation:sp .7s linear infinite;vertical-align:-2px}
+.btn .spin{border-color:rgba(255,255,255,.35);border-top-color:#fff}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* ---------- Kennzahlen ---------- */
+.kpis{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));margin:14px 0 4px}
+.kpi{background:var(--aha-paper);border:1px solid var(--border);border-radius:var(--r-btn);padding:11px 14px}
+.kpi .l{font-size:.74rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.kpi .v{font-size:1.3rem;font-weight:800;margin-top:2px;letter-spacing:-.02em}
+.kpi .d{font-size:.74rem;color:var(--muted);margin-top:2px}
+.kpi.accent .v{color:var(--aha-red)}
+.kpi.good .v{color:var(--ok)}
+
+/* ---------- Tabellen ---------- */
+.tablewrap{overflow-x:auto;margin-top:12px;border:1px solid var(--border);border-radius:var(--r-btn);
+      max-height:min(56vh,620px);overflow-y:auto}
+.tablewrap.flat{max-height:none}
+table{border-collapse:collapse;width:100%;font-size:.86rem}
+th,td{padding:8px 11px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+th{background:var(--aha-paper);font-weight:800;font-size:.74rem;text-transform:uppercase;
+   letter-spacing:.04em;color:var(--muted);position:sticky;top:0;z-index:1}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+tbody tr:last-child td{border-bottom:none}
+tbody tr.grp td{border-top:2px solid var(--border-str);font-weight:800;background:var(--aha-paper)}
+td .txt{max-width:44ch;overflow:hidden;text-overflow:ellipsis;display:inline-block;
+        vertical-align:bottom;white-space:nowrap}
+.mono{font-family:var(--mono);font-size:.92em}
+.miss{font-family:var(--mono);font-weight:800;color:var(--aha-red)}
+table.gaptab{table-layout:fixed}
+table.gaptab th:nth-child(1),table.gaptab td:nth-child(1){width:40%}
+table.gaptab th:nth-child(2),table.gaptab td:nth-child(2){width:7ch}
+table.gaptab th:nth-child(3),table.gaptab td:nth-child(3),
+table.gaptab th:nth-child(4),table.gaptab td:nth-child(4){width:26.5%;white-space:normal}
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:.79rem;color:var(--muted)}
+.legend span b{font-weight:800;color:var(--aha-ink)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.chip{font-family:var(--mono);font-size:.82rem;background:var(--err-bg);border:1px solid var(--err-bd);
+      color:var(--err);border-radius:var(--r-chip);padding:3px 9px;font-weight:700}
+.chip.neutral{background:var(--info-bg);border-color:var(--border);color:var(--muted);font-weight:500}
+
+details.settings{background:var(--aha-white);border:1px solid var(--border);border-radius:var(--r-card);
+     box-shadow:var(--shadow);padding:6px 28px;margin-bottom:24px}
+details.settings > summary{cursor:pointer;font-weight:800;padding:18px 0;font-size:1.02rem;
+     list-style:none;display:flex;align-items:center;gap:10px}
+details.settings > summary::-webkit-details-marker{display:none}
+details.settings > summary::after{content:'▾';margin-left:auto;color:var(--muted);font-size:.9rem}
+details.settings[open] > summary::after{content:'▴'}
+details.settings > .body{padding-bottom:24px}
+details.inner{margin-top:12px;border:1px solid var(--border);border-radius:var(--r-btn);
+      padding:0 14px;background:var(--aha-white)}
+details.inner > summary{cursor:pointer;font-weight:800;font-size:.87rem;padding:10px 0;list-style:none;
+      display:flex;align-items:center;gap:9px}
+details.inner > summary::-webkit-details-marker{display:none}
+details.inner > summary::before{content:'▸';color:var(--muted);flex:0 0 auto;width:10px}
+details.inner[open] > summary::before{content:'▾'}
+details.inner > summary:hover{color:var(--aha-red)}
+details.inner > .ibody{padding-bottom:13px}
+details.inner .pmeta{font-weight:500;font-size:.8rem;color:var(--muted);margin-left:auto;
+      text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sectitle{font-size:.76rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;
+     color:var(--aha-red);margin:22px 0 10px;padding-top:18px;border-top:1px solid var(--border)}
+.sectitle:first-child{margin-top:6px;padding-top:0;border-top:none}
+#diag{margin-top:16px;background:#252525;color:#D9D4CE;border-radius:var(--r-btn);padding:13px 15px;
+     font-family:var(--mono);font-size:.76rem;max-height:260px;overflow:auto;white-space:pre-wrap;
+     word-break:break-all;display:none}
+footer{color:var(--muted);font-size:.78rem;text-align:center;padding:8px 0 0;line-height:1.6}
+@media print{
+  header.hero{background:#fff;color:var(--aha-ink)}
+  .btnrow,#diag,details.settings,.card.dim,.promo{display:none}
+  .card{box-shadow:none;break-inside:avoid}
+  .cols2,.cols2.wide-left{display:block}
+  .tablewrap{max-height:none}
+  details.inner{border:none;padding:0}
+}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="brand">
+      <span class="mark"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M7 8h13l5 5v11a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1z" fill="#fff"/></svg></span>
+      AHA Consulting · DATEVconnect
+    </div>
+    <h1>Rechnungsnummern der Debitoren auf Fortlaufigkeit prüfen</h1>
+    <p>Grundlage sind die Kontobuchungen mit einem <b>Debitorenkonto im Soll</b>; die Rechnungsnummer
+       steht in <code>document_field1</code> (Belegfeld 1). Über die Stelle, ab der die Nummer fortlaufend
+       ist, wird sie in Präfix und Zähler getrennt. Ergebnis: <b>fehlende Rechnungsnummern</b> und
+       <b>Nummern, die nicht in das Schema passen</b> — dazu auf Wunsch eine Klärungs-E-Mail an den
+       Mandanten per <code>mailto:</code>-Link an Outlook.</p>
+    <div class="hero-note">Die Anmeldung läuft über Ihre Windows-Sitzung — es sind keine Zugangsdaten nötig.
+       Die Datei arbeitet lokal im Browser, ohne Server und ohne externe Ressourcen.</div>
+    <div class="promo">
+      <span class="tag">Zeitfresser</span>
+      <p><b>Dieses Tool ist aus einem Zeitfresser entstanden.</b> Das Nachhalten der
+         Rechnungsnummern von Hand — Kontoblatt ausdrucken, Nummern abhaken, Lücken suchen —
+         kostet in jeder Buchhaltung Zeit. Sagen Sie mir, was in Ihrer Buchhaltung am meisten
+         Zeit frisst: zu jedem gemeldeten Zeitfresser entsteht ein Video-Tutorial oder ein
+         Werkzeug wie dieses.</p>
+      <a class="cta" href="https://tally.so/r/GxE0Wp" target="_blank" rel="noopener">Zeitfresser melden</a>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+<!-- ================= EINSTELLUNGEN ================= -->
+<details class="settings" id="settings">
+  <summary><span class="dot"></span>Einstellungen</summary>
+  <div class="body">
+
+    <div class="sectitle">Verbindung</div>
+    <div class="grid g2">
+      <div class="field">
+        <label>Adresse DATEVconnect Accounting</label>
+        <div class="hint"><code id="baseEcho"></code><br>Fest im Quelltext eingetragen (Block <b>KONFIGURATION</b> am Anfang des Skripts).
+          Jeder Aufruf läuft mit <code>mode:'cors'</code> und <code>credentials:'include'</code>.</div>
+      </div>
+      <div class="field">
+        <label>Diagnose</label>
+        <div class="switch">
+          <input type="checkbox" id="cfgDiag">
+          <div><div class="t">Expertenansicht</div>
+            <div class="d">Zeigt jeden Request mit URL und Statuscode unten im Protokoll.</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sectitle">Abruf</div>
+    <div class="grid g2">
+      <div class="field">
+        <label>Serverfilter</label>
+        <div class="switch">
+          <input type="checkbox" id="cfgFilter" checked>
+          <div><div class="t">Nur den Debitorenbereich abrufen</div>
+            <div class="d">An (Vorgabe): <code>filter=account_number ge … and account_number le …</code> mit dem
+              kleinsten und größten Debitorenkonto aus <code>/debitors</code>. Aus: alle Kontobuchungen des
+              Wirtschaftsjahres werden geladen und erst im Browser eingegrenzt — deutlich langsamer, aber
+              unabhängig davon, ob der Dienst den Filterausdruck annimmt.</div></div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Feldauswahl</label>
+        <div class="switch">
+          <input type="checkbox" id="cfgSelect" checked>
+          <div><div class="t"><code>select</code> auf die benötigten Felder</div>
+            <div class="d">Verkleinert die Antwort. Wird der Ausdruck mit HTTP 400 abgelehnt, wiederholt das
+              Tool den Abruf einmal ohne <code>select</code> und weist das im Protokoll aus.</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="grid g2" style="margin-top:16px">
+      <div class="field">
+        <label>Gegenkonto-Seite</label>
+        <div class="switch">
+          <input type="checkbox" id="cfgContra">
+          <div><div class="t">Buchungen mit dem Debitor im <b>Gegenkonto</b> mitzählen</div>
+            <div class="d">Aus (Vorgabe): gewertet wird <code>account_number</code> = Debitor und
+              <code>amount_debit</code> &gt; 0. An: zusätzlich <code>contra_account_number</code> = Debitor und
+              <code>amount_credit</code> &gt; 0 — <b>abgeleitet</b> aus der Annahme, dass sich Soll und Haben
+              in der API auf die <code>account_number</code>-Seite beziehen. <b>Nicht am Echtsystem belegt.</b>
+              Die Zählung unter „Lieferform“ zeigt, welche Form Ihr DATEVconnect tatsächlich liefert.</div></div>
+        </div>
+      </div>
+      <div class="field">
+        <label for="cfgTop">Seitengröße Debitorenstammdaten</label>
+        <input type="text" id="cfgTop" value="1000" inputmode="numeric">
+        <div class="hint"><code>top</code> für <code>/debitors</code>; geblättert wird mit
+          <code>skip</code>, entdoppelt über den vollständigen Inhalt.</div>
+      </div>
+    </div>
+
+    <div class="sectitle">Schema der Rechnungsnummer</div>
+    <div class="grid g3">
+      <div class="field">
+        <label for="cfgStart">Zähler beginnt ab Stelle</label>
+        <input type="number" id="cfgStart" value="3" min="1" max="36" step="1">
+        <div class="hint">Alles davor ist Präfix. <code>RE10001</code> mit Stelle 3 → Präfix
+          <code>RE</code>, Zähler <code>10001</code>. Stelle 1 = kein Präfix.</div>
+      </div>
+      <div class="field">
+        <label for="cfgWidth">Zählerlänge</label>
+        <select id="cfgWidth">
+          <option value="strict" selected>muss je Präfix einheitlich sein</option>
+          <option value="loose">darf abweichen</option>
+        </select>
+        <div class="hint">Vorgabe: abweichende Längen (<code>RE998</code> neben <code>RE10001</code>)
+          gehören nicht ins Schema. „Darf abweichen“ vergleicht nur den Zahlenwert.</div>
+      </div>
+      <div class="field">
+        <label for="cfgGapWarn">Lücke ab … Nummern als Sprung melden</label>
+        <input type="number" id="cfgGapWarn" value="50" min="2" step="1">
+        <div class="hint">Größere Lücken werden zusätzlich als möglicher Nummernsprung oder fremder
+          Rechnungskreis gekennzeichnet — sie bleiben in der Liste.</div>
+      </div>
+    </div>
+
+    <div class="sectitle">E-Mail an den Mandanten</div>
+    <div class="grid g2">
+      <div class="field">
+        <label>Adresse zentrale Stammdaten</label>
+        <div class="hint"><code id="baseEchoMd"></code><br>Eigene Schnittstelle mit eigener Lizenz (<code>master-data/v1</code>, gehört zu
+          DATEV Eigenorganisation). Nur sie liefert Briefanrede und E-Mail-Adresse —
+          <code>accounting/v1</code> kennt zum Mandanten lediglich Nummer und Name.</div>
+      </div>
+      <div class="field">
+        <label for="cfgSender">Absender / Grußformel</label>
+        <textarea id="cfgSender" rows="3">Mit freundlichen Grüßen</textarea>
+        <div class="hint">Wird über den Platzhalter <code>{absender}</code> eingesetzt.</div>
+      </div>
+    </div>
+    <div class="grid g2" style="margin-top:16px">
+      <div class="field">
+        <label>Lücken mit Sprungverdacht</label>
+        <div class="switch">
+          <input type="checkbox" id="cfgMailNoJump" checked>
+          <div><div class="t">Nicht mit anfragen</div>
+            <div class="d">An (Vorgabe): Lücken ab der oben eingestellten Breite bleiben aus der Mail —
+              sie sind meist ein Nummernsprung, nicht eine Reihe fehlender Rechnungen. Wie viele
+              Nummern dadurch nicht angefragt werden, steht in der Vorschau.</div></div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Nummern außerhalb des Schemas</label>
+        <div class="switch">
+          <input type="checkbox" id="cfgMailBad">
+          <div><div class="t">Mit anfragen</div>
+            <div class="d">Aus (Vorgabe): Die Mail fragt ausschließlich nach fehlenden Nummern. An:
+              die abweichenden Nummern kommen über den Platzhalter
+              <code>{abweichende}</code> hinzu.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</details>
+
+<div class="cols2">
+<!-- ================= 1 · MANDANT ================= -->
+<section class="card" id="card1">
+  <h2><span class="step" id="s1">1</span>Mandant und Wirtschaftsjahr</h2>
+  <p class="sub">Die Mandanten werden über <code class="mono">GET /clients</code> aus DATEVconnect gelesen.</p>
+  <div class="btnrow" style="margin-top:0">
+    <button class="btn" id="btnConnect">Mandanten laden</button>
+    <span id="connStatus"></span>
+  </div>
+  <div id="selects" style="display:none;margin-top:20px">
+    <div class="grid g2">
+      <div class="field">
+        <label for="selClient">Mandant</label>
+        <select id="selClient"></select>
+      </div>
+      <div class="field">
+        <label for="selFy">Wirtschaftsjahr</label>
+        <select id="selFy"></select>
+      </div>
+    </div>
+    <div id="fyInfo" class="notice" style="display:none"></div>
+  </div>
+</section>
+
+<!-- ================= 2 · ABRUF ================= -->
+<section class="card dim" id="card2">
+  <h2><span class="step" id="s2">2</span>Debitoren und Buchungen abrufen</h2>
+  <p class="sub">Gelesen werden die Debitorenstammdaten (<code class="mono">GET /debitors</code>) und die
+     Kontobuchungen des Wirtschaftsjahres (<code class="mono">GET /account-postings</code>). Gewertet werden
+     nur Buchungen, bei denen ein Debitorenkonto <b>im Soll</b> steht.</p>
+  <div class="btnrow" style="margin-top:0">
+    <button class="btn" id="btnFetch">Daten abrufen</button>
+    <span id="fetchStatus"></span>
+  </div>
+</section>
+</div>
+
+<section class="card" id="cardFetch" style="display:none">
+  <div id="fetchResult"></div>
+</section>
+
+<!-- ================= 3 · PRÜFUNG ================= -->
+<section class="card dim" id="card3">
+  <h2><span class="step" id="s3">3</span>Schema festlegen und prüfen</h2>
+  <p class="sub">Die Stelle gilt für alle Nummern. Jeder daraus entstehende Präfix bildet eine eigene
+     fortlaufende Folge und kann von der Prüfung ausgenommen werden. Was der Regel nicht entspricht,
+     steht vollständig in der zweiten Ergebnisliste — es wird nichts verworfen.</p>
+  <div class="grid g3">
+    <div class="field">
+      <label for="cfgStart2">Zähler beginnt ab Stelle</label>
+      <input type="number" id="cfgStart2" value="3" min="1" max="36" step="1">
+      <div class="hint" id="startEcho"></div>
+    </div>
+    <div class="field">
+      <label for="cfgWidth2">Zählerlänge</label>
+      <select id="cfgWidth2">
+        <option value="strict" selected>muss je Präfix einheitlich sein</option>
+        <option value="loose">darf abweichen</option>
+      </select>
+      <div class="hint">Wirkt sofort auf beide Ergebnislisten.</div>
+    </div>
+    <div class="field">
+      <label>Beispiele aus den abgerufenen Daten</label>
+      <div class="hint" id="splitEcho">—</div>
+    </div>
+  </div>
+  <div id="prefixBox"></div>
+  <div id="result"></div>
+  <div class="btnrow">
+    <button class="btn sec" id="btnCsvMiss" disabled>Fehlende Nummern als CSV</button>
+    <button class="btn sec" id="btnCsvBad" disabled>Nicht-Schema-Nummern als CSV</button>
+    <button class="btn ghost" id="btnPrint" disabled>Bericht drucken</button>
+    <span id="expStatus"></span>
+  </div>
+</section>
+
+<!-- ================= 4 · MAIL AN DEN MANDANTEN ================= -->
+<section class="card dim" id="card4">
+  <h2><span class="step" id="s4">4</span>Klärung beim Mandanten anfragen</h2>
+  <p class="sub">Briefanrede und E-Mail-Adresse kommen aus den zentralen Stammdaten
+     (<code class="mono">master-data/v1</code>) — nicht aus <code class="mono">accounting/v1</code>.
+     Der Abruf darf fehlschlagen; Empfänger und Anrede sind dann von Hand zu füllen.</p>
+
+  <div class="cols2 wide-left">
+  <div>
+  <div class="btnrow" style="margin-top:0">
+    <button class="btn sec" id="btnLoadContact">Empfänger aus den Stammdaten laden</button>
+    <span id="contactStatus"></span>
+  </div>
+  <div id="contactResult"></div>
+
+  <div class="grid g2" style="margin-top:14px">
+    <div class="field">
+      <label for="mailTo">E-Mail-Adresse des Mandanten</label>
+      <input type="text" id="mailTo" value="" placeholder="name@mandant.de">
+      <div class="hint">Wird aus den Stammdaten vorbelegt und ist überschreibbar.</div>
+    </div>
+    <div class="field">
+      <label for="mailSalutation">Briefanrede</label>
+      <input type="text" id="mailSalutation" value="" placeholder="Sehr geehrte Damen und Herren,">
+      <div class="hint">Aus <code>detail.salutation</code>. Bleibt das Feld leer, setzt
+        <code>{anrede}</code> „Sehr geehrte Damen und Herren,“ ein.</div>
+    </div>
+  </div>
+
+  <details class="inner" id="mdBox">
+    <summary>Woher Anrede und Adresse kommen</summary>
+    <div class="ibody" style="font-size:.83rem;color:var(--muted)">
+      In den zentralen Stammdaten hängen die Daten nicht am Mandanten, sondern an seinem
+      Adressaten: <code class="mono">GET /clients/{guid}</code> liefert
+      <code class="mono">legal_person_id</code> bzw. <code class="mono">natural_person_id</code>,
+      <code class="mono">GET /addressees/{id}?expand=detail,communications,contact_persons</code>
+      dann <code class="mono">detail.salutation</code> als Briefanrede und die
+      <code class="mono">communications</code> vom Typ <code class="mono">email</code>.
+      Führt die GUID dort nicht zum Ziel, folgt der zweite dokumentierte Weg über
+      <code class="mono">filter=number eq &lt;Mandantennummer&gt;</code>. Ein 404 heißt meist:
+      <code class="mono">master-data/v1</code> ist nicht installiert oder nicht lizenziert.
+    </div>
+  </details>
+
+  <details class="inner" id="tplBox">
+    <summary>Vorlage bearbeiten</summary>
+    <div class="ibody">
+      <div class="field">
+        <label for="mailSubjectTpl">Betreff-Vorlage</label>
+        <input type="text" id="mailSubjectTpl" value="Rückfrage: {anzahltext}">
+      </div>
+      <div class="field" style="margin-top:14px">
+        <label for="mailBodyTpl">Text-Vorlage</label>
+        <textarea id="mailBodyTpl"></textarea>
+        <div class="hint">Platzhalter: <code>{anrede}</code> <code>{mandant}</code> <code>{wj}</code>
+          <code>{anzahltext}</code> („4 fehlende Rechnungsnummern“) <code>{anzahl}</code> (nur die Zahl)
+          <code>{luecken}</code> (Anzahl der Lücken)
+          <code>{liste}</code> <code>{kreise}</code> <code>{abweichende}</code>
+          <code>{absender}</code>. Die Vorlage ist ein Textbaustein, kein Rechtsrat — die
+          rechtliche Formulierung verantwortet die Kanzlei.</div>
+      </div>
+      <div class="btnrow">
+        <button class="btn ghost" id="btnTplReset">Vorlage zurücksetzen</button>
+      </div>
+    </div>
+  </details>
+
+  <div id="mailWarn"></div>
+  </div>
+
+  <div>
+  <div id="mailPreview"></div>
+  <div class="btnrow">
+    <button class="btn" id="btnMailOpen" disabled>In Outlook öffnen</button>
+    <button class="btn sec" id="btnMailCopy" disabled>Betreff und Text kopieren</button>
+    <span id="mailStatus"></span>
+  </div>
+  </div>
+  </div>
+</section>
+
+<div id="diag"></div>
+
+<footer>
+  AHA Consulting GmbH · Single-File-Werkzeug für DATEVconnect · v1.2.1 —
+  kein Proxy, kein <code>no-cors</code>, keine Zugangsdaten. Es wird ausschließlich gelesen;
+  dieses Tool schreibt nichts nach DATEV.
+</footer>
+</div>
+
+<script>
+'use strict';
+/* ===================== KONFIGURATION – nur hier ändern =====================
+   Adresse von DATEVconnect. Fest eingetragen, damit sie nicht versehentlich
+   (oder auf fremde Veranlassung) in der Oberfläche umgestellt werden kann.
+   HTTPS-Variante:  'https://localhost:58452/datev/api'
+   Wer DATEVconnect anders erreicht (z. B. über einen Server), ändert NUR diese Zeile.
+   ============================================================================ */
+var DATEVCONNECT_BASE = 'http://localhost:58454/datev/api';
+
+/* =====================================================================
+   Rechnungsnummern-Prüfung (Debitoren) — v1.2.1
+   Konventionen aus DATEVconnect-CORS-Authentifizierung.md:
+     - keine Zugangsdaten (Windows-Sitzung)
+     - jeder fetch mit mode:'cors' + credentials:'include'
+     - GET nur mit Accept-Header (kein Preflight)
+     - Query von Hand kodieren (URLSearchParams macht %20 zu '+')
+     - Fallback include -> omit genau einmal, Fehler nicht verschlucken
+     - /account-postings kennt laut Spezifikation KEIN skip/top: ein Abruf,
+       keine Blätterung, kein Hinweis auf eine unvollständige Lieferung.
+       Filterbar sind nur account_number, date, accounting_reason.
+   ===================================================================== */
+
+/* ===================== CORE-START — keine DOM-Zugriffe ===================== */
+var RNL = (function(){
+
+  function num(v){ var n=Number(v); return isFinite(n)?n:0; }
+  function r2(n){ return Math.round((Number(n)||0)*100)/100; }
+  function isoDate(dt){ return dt?String(dt).slice(0,10):''; }
+  function deDate(iso){
+    var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||'');
+    return m?m[3]+'.'+m[2]+'.'+m[1]:(iso||'');
+  }
+  function pad(n,w){ var s=String(n); while(s.length<w) s='0'+s; return s; }
+
+  /* Technische Maximallänge -> Anzeigenummer. Personenkonten sind 9-stellig,
+     Sachkonten 8-stellig, rechts mit Nullen aufgefüllt (Debitor 10005 -> 100050000).
+     Zurückgeschnitten wird nur, wenn der abgeschnittene Rest ausschließlich Nullen
+     enthält — sonst bleibt die Nummer, wie sie geliefert wurde. */
+  function toDisplayAccount(acc, accountLength, isSub){
+    var s=String(acc==null?'':acc).replace(/\D/g,''); if(!s) return '';
+    var L=accountLength||4, disp=isSub?L+1:L, maxLen=isSub?9:8;
+    if(s.length===maxLen && maxLen>disp){
+      var cut=s.slice(0,disp), rest=s.slice(disp);
+      if(/^0*$/.test(rest)) return cut;
+    }
+    return s;
+  }
+
+  /* ---------- Normalisierung einer Kontobuchung ---------- */
+  function normPosting(p){
+    return {
+      id: p.id!=null?String(p.id):'',
+      account: p.account_number!=null?num(p.account_number):0,
+      contra: p.contra_account_number!=null?num(p.contra_account_number):0,
+      debit: num(p.amount_debit),
+      credit: num(p.amount_credit),
+      iso: isoDate(p.date),
+      doc1: String(p.document_field1==null?'':p.document_field1).trim(),
+      doc2: String(p.document_field2==null?'':p.document_field2).trim(),
+      text: String(p.posting_description==null?'':p.posting_description).trim(),
+      reversal: p.general_reversal===true || p.general_reversal==='true',
+      isEB: p.is_opening_balance_posting===true,
+      seq: String(p.accounting_sequence_id==null?'':p.accounting_sequence_id)
+    };
+  }
+
+  /* Entdoppelung über den VOLLSTÄNDIGEN Inhalt, nicht über die id.
+     Dass eine id eindeutig ist, ist bei DATEVconnect nicht belegt; eine
+     id-Entdoppelung würde echte Buchungen verwerfen. */
+  function dedupe(list){
+    var seen={}, out=[], collapsed=0;
+    for(var i=0;i<list.length;i++){
+      var p=list[i];
+      var key=[p.id,p.account,p.contra,p.debit,p.credit,p.iso,p.doc1,p.doc2,p.text,
+               p.reversal?1:0,p.isEB?1:0,p.seq].join('\u0001');
+      if(seen[key]){ collapsed++; continue; }
+      seen[key]=true; out.push(p);
+    }
+    return { list:out, collapsed:collapsed };
+  }
+
+  /* ---------- Auswahl: Debitorenkonto im Soll ----------
+     Primärkriterium (von Andreas vorgegeben): account_number ist ein Debitor
+     UND amount_debit > 0.
+     Zusatzkriterium (optional, ABGELEITET und nicht am Echtsystem belegt):
+     contra_account_number ist ein Debitor UND amount_credit > 0 — das setzt
+     voraus, dass sich die Betragsfelder auf die account_number-Seite beziehen.
+     Alle vier Kombinationen werden gezählt und ausgewiesen, damit am Echtsystem
+     sichtbar ist, welche Lieferform vorliegt. */
+  function selectDebitorSoll(list, debSet, useContra){
+    var stat={ total:list.length, accDebit:0, accCredit:0, contraDebit:0, contraCredit:0,
+               bothSides:0, noDebitor:0, zero:0, negative:0 };
+    var rows=[], other=[];
+    for(var i=0;i<list.length;i++){
+      var p=list[i];
+      var a=debSet[String(p.account)]===true, c=debSet[String(p.contra)]===true;
+      if(a && p.debit>0) stat.accDebit++;
+      if(a && p.credit>0) stat.accCredit++;
+      if(c && p.debit>0) stat.contraDebit++;
+      if(c && p.credit>0) stat.contraCredit++;
+      if(a && c) stat.bothSides++;
+      if(!a && !c){ stat.noDebitor++; continue; }
+      if(p.debit<0 || p.credit<0) stat.negative++;
+      var hit=null;
+      if(a && p.debit>0) hit={ side:'account', deb:p.account, amount:r2(p.debit) };
+      else if(useContra && c && p.credit>0) hit={ side:'contra', deb:p.contra, amount:r2(p.credit) };
+      if(!hit){
+        if(p.debit===0 && p.credit===0) stat.zero++;
+        other.push(p);
+        continue;
+      }
+      var row={}; for(var k in p) if(Object.prototype.hasOwnProperty.call(p,k)) row[k]=p[k];
+      row.side=hit.side; row.deb=hit.deb; row.amount=hit.amount;
+      rows.push(row);
+    }
+    return { rows:rows, other:other, stat:stat };
+  }
+
+  /* ---------- Schemaregel: Präfix mit fester Länge ----------
+     startPos ist 1-basiert: die Stelle, ab der der Zähler beginnt.
+     prefixLen = startPos - 1. */
+  function parseDoc1(doc1, startPos){
+    var s=String(doc1==null?'':doc1).trim();
+    var prefixLen=Math.max(0,(startPos|0)-1);
+    if(!s) return { ok:false, prefix:'', reason:'Belegfeld 1 ist leer — in der Buchung steht keine Rechnungsnummer' };
+    if(s.length<=prefixLen) return { ok:false, prefix:s,
+      reason:'nur '+s.length+' Zeichen lang — der Zähler würde erst ab Stelle '+(prefixLen+1)+' beginnen' };
+    var prefix=s.slice(0,prefixLen), rest=s.slice(prefixLen);
+    if(!/^[0-9]+$/.test(rest)) return { ok:false, prefix:prefix,
+      reason:'ab Stelle '+(prefixLen+1)+' stehen nicht ausschließlich Ziffern ('+rest+')' };
+    return { ok:true, prefix:prefix, counterStr:rest, counter:parseInt(rest,10), width:rest.length };
+  }
+
+  /* ---------- Auswertung ----------
+     cfg = { startPos, strictWidth, gapWarn, maxListPerGap, excluded:{präfix:true} }  */
+  function analyse(rows, cfg){
+    cfg=cfg||{};
+    var startPos=cfg.startPos||1;
+    var strict=cfg.strictWidth!==false;
+    var gapWarn=cfg.gapWarn||50;
+    var maxList=cfg.maxListPerGap||500;
+    var excluded=cfg.excluded||{};
+
+    var wf=[], bad=[];
+    for(var i=0;i<rows.length;i++){
+      var r=rows[i], p=parseDoc1(r.doc1,startPos);
+      if(!p.ok){ bad.push({ row:r, doc1:r.doc1, reason:p.reason, kind:'form' }); continue; }
+      wf.push({ row:r, doc1:r.doc1, prefix:p.prefix, counter:p.counter,
+                counterStr:p.counterStr, width:p.width });
+    }
+
+    /* Präfixe sammeln, dominante Zählerlänge je Präfix bestimmen */
+    var gmap={}, order=[];
+    for(i=0;i<wf.length;i++){
+      var e=wf[i];
+      if(!gmap[e.prefix]){ gmap[e.prefix]={ prefix:e.prefix, entries:[], widths:{} }; order.push(e.prefix); }
+      var g=gmap[e.prefix];
+      g.entries.push(e);
+      g.widths[e.width]=(g.widths[e.width]||0)+1;
+    }
+    order.sort();
+
+    var prefixStats=[];
+    for(i=0;i<order.length;i++){
+      g=gmap[order[i]];
+      var best=null, bc=-1, ws=Object.keys(g.widths);
+      for(var w=0;w<ws.length;w++){
+        var cnt=g.widths[ws[w]];
+        if(cnt>bc || (cnt===bc && +ws[w]<+best)){ best=+ws[w]; bc=cnt; }
+      }
+      g.width=best; g.mixedWidth=ws.length>1;
+      g.excluded=excluded[g.prefix]===true;
+      prefixStats.push({ prefix:g.prefix, count:g.entries.length, width:g.width,
+                         widths:g.widths, mixedWidth:g.mixedWidth, excluded:g.excluded });
+    }
+
+    /* Ausschlüsse: ausgenommene Präfixe und abweichende Zählerlängen wandern in
+       die zweite Ergebnisliste — mit Begründung, nicht stillschweigend. */
+    var groups=[];
+    for(i=0;i<order.length;i++){
+      g=gmap[order[i]];
+      if(g.excluded){
+        for(var j=0;j<g.entries.length;j++)
+          bad.push({ row:g.entries[j].row, doc1:g.entries[j].doc1, kind:'excluded',
+                     reason:'Präfix „'+g.prefix+'“ ist von der Prüfung ausgenommen' });
+        continue;
+      }
+      var keep=[];
+      for(j=0;j<g.entries.length;j++){
+        e=g.entries[j];
+        if(strict && e.width!==g.width){
+          bad.push({ row:e.row, doc1:e.doc1, kind:'width',
+                     reason:'Zähler '+e.width+'-stellig, im Präfix „'+g.prefix+'“ sind '+g.width+
+                            ' Stellen üblich ('+g.widths[g.width]+' von '+g.entries.length+' Nummern)' });
+        } else keep.push(e);
+      }
+      if(!keep.length) continue;
+      groups.push(buildGroup(g.prefix, keep, g.width, g.mixedWidth, gapWarn, maxList));
+    }
+
+    var missingTotal=0, gapCount=0, checkedNumbers=0, conflicts=[], jumpCount=0;
+    for(i=0;i<groups.length;i++){
+      missingTotal+=groups[i].missingCount;
+      gapCount+=groups[i].gaps.length;
+      checkedNumbers+=groups[i].numbers;
+      jumpCount+=groups[i].jumpCount;
+      for(j=0;j<groups[i].conflicts.length;j++) conflicts.push(groups[i].conflicts[j]);
+    }
+
+    bad.sort(function(a,b){
+      if(a.kind!==b.kind) return a.kind<b.kind?-1:1;
+      return String(a.doc1).localeCompare(String(b.doc1),'de',{numeric:true});
+    });
+
+    return { groups:groups, prefixStats:prefixStats, bad:bad, conflicts:conflicts,
+             wellformed:wf.length, postings:rows.length,
+             missingTotal:missingTotal, gapCount:gapCount, jumpCount:jumpCount,
+             checkedNumbers:checkedNumbers, startPos:startPos, strictWidth:strict };
+  }
+
+  function buildGroup(prefix, entries, width, mixedWidth, gapWarn, maxList){
+    var byCounter={}, counters=[];
+    for(var i=0;i<entries.length;i++){
+      var e=entries[i];
+      if(!byCounter[e.counter]){ byCounter[e.counter]=[]; counters.push(e.counter); }
+      byCounter[e.counter].push(e);
+    }
+    counters.sort(function(a,b){ return a-b; });
+
+    /* Mehrfachbelegung einer Nummer: auf demselben Debitor ist das eine Splitbuchung
+       (eine Rechnung auf mehrere Erlöskonten) und normal. Auf verschiedenen Debitoren
+       ist es ein Befund. */
+    var splits=0, conflicts=[];
+    for(i=0;i<counters.length;i++){
+      var list=byCounter[counters[i]];
+      if(list.length<2) continue;
+      var debs={}, n=0;
+      for(var j=0;j<list.length;j++){ var d=String(list[j].row.deb); if(!debs[d]){ debs[d]=true; n++; } }
+      if(n>1) conflicts.push({ prefix:prefix, number:prefix+pad(counters[i],width),
+                               debitors:Object.keys(debs), rows:list.map(function(x){return x.row;}) });
+      else splits++;
+    }
+
+    /* Lücken */
+    var gaps=[], missingCount=0, jumpCount=0;
+    for(i=1;i<counters.length;i++){
+      var a=counters[i-1], b=counters[i];
+      if(b-a<=1) continue;
+      var count=b-a-1;
+      var nums=[];
+      for(var c=a+1;c<=b-1 && nums.length<maxList;c++) nums.push(prefix+pad(c,width));
+      var isJump=count>=gapWarn;
+      if(isJump) jumpCount++;
+      gaps.push({ prefix:prefix, fromCounter:a+1, toCounter:b-1, count:count,
+                  numbers:nums, truncated:count>nums.length, jump:isJump,
+                  prev:byCounter[a][0], next:byCounter[b][0] });
+      missingCount+=count;
+    }
+
+    /* Plausibilität: läuft der Zähler mit dem Belegdatum? */
+    var inversions=0, comparable=0;
+    for(i=1;i<counters.length;i++){
+      var p1=byCounter[counters[i-1]][0], p2=byCounter[counters[i]][0];
+      if(!p1.row.iso || !p2.row.iso) continue;
+      comparable++;
+      if(p2.row.iso<p1.row.iso) inversions++;
+    }
+
+    return {
+      prefix:prefix, width:width, mixedWidth:mixedWidth,
+      numbers:counters.length, postings:entries.length,
+      min:counters[0], max:counters[counters.length-1],
+      minNumber:prefix+pad(counters[0],width),
+      maxNumber:prefix+pad(counters[counters.length-1],width),
+      span:counters[counters.length-1]-counters[0]+1,
+      gaps:gaps, missingCount:missingCount, jumpCount:jumpCount,
+      splits:splits, conflicts:conflicts,
+      inversions:inversions, comparable:comparable,
+      firstRow:byCounter[counters[0]][0].row,
+      lastRow:byCounter[counters[counters.length-1]][0].row
+    };
+  }
+
+
+  /* ---------- E-Mail an den Mandanten ----------
+     Zusammengestellt wird aus dem Prüfergebnis, nicht aus dem DOM: die Auswahl der
+     anzufragenden Lücken, die Textliste und das Einsetzen der Platzhalter sind reine
+     Funktionen und damit prüfbar. */
+
+  /* Lücken, die angefragt werden sollen. Lücken mit Sprungverdacht bleiben per Vorgabe
+     draußen — eine Lücke von mehreren tausend Nummern ist so gut wie nie eine Reihe
+     fehlender Rechnungen. Was dadurch nicht angefragt wird, wird gezählt und gemeldet,
+     nicht verschwiegen. */
+  function mailGaps(groups, opts){
+    opts=opts||{};
+    var skipJumps=opts.skipJumps!==false;
+    var items=[], skippedGaps=0, skippedNumbers=0;
+    for(var i=0;i<groups.length;i++){
+      var g=groups[i];
+      for(var j=0;j<g.gaps.length;j++){
+        var gp=g.gaps[j];
+        if(skipJumps && gp.jump){ skippedGaps++; skippedNumbers+=gp.count; continue; }
+        items.push({
+          prefix:g.prefix, count:gp.count,
+          first:g.prefix+pad(gp.fromCounter,g.width),
+          last:g.prefix+pad(gp.toCounter,g.width),
+          prevDoc:gp.prev?gp.prev.doc1:'', prevDate:gp.prev?deDate(gp.prev.row.iso):'',
+          nextDoc:gp.next?gp.next.doc1:'', nextDate:gp.next?deDate(gp.next.row.iso):''
+        });
+      }
+    }
+    var total=0;
+    for(i=0;i<items.length;i++) total+=items[i].count;
+    return { items:items, total:total, skippedGaps:skippedGaps, skippedNumbers:skippedNumbers };
+  }
+
+  /* Textliste für die Mail. Mehrere Nummernkreise werden mit Zwischenzeile getrennt;
+     bei einem einzigen Kreis entfällt sie. Der Kontext (Nummer und Datum der Rechnung
+     davor und danach) ist die eigentliche Sucherleichterung für den Mandanten. */
+  function mailList(items){
+    var seen={}, kinds=0;
+    for(var i=0;i<items.length;i++) if(!seen[items[i].prefix]){ seen[items[i].prefix]=true; kinds++; }
+    var multi=kinds>1, out=[], last=null;
+    for(i=0;i<items.length;i++){
+      var it=items[i];
+      if(multi && it.prefix!==last){
+        out.push((out.length?'\n':'')+'Nummernkreis '+(it.prefix||'(ohne Präfix)')+':');
+        last=it.prefix;
+      }
+      var head = it.count===1 ? it.first : (it.first+' bis '+it.last+' ('+it.count+' Nummern)');
+      var ctx=[];
+      if(it.prevDoc) ctx.push('nach '+it.prevDoc+(it.prevDate?' vom '+it.prevDate:''));
+      if(it.nextDoc) ctx.push('vor '+it.nextDoc+(it.nextDate?' vom '+it.nextDate:''));
+      out.push('- '+head+(ctx.length?'\n  ('+ctx.join(', ')+')':''));
+    }
+    return out.join('\n');
+  }
+
+  /* Nummern außerhalb des Schemas, nur auf Wunsch. Buchungen ohne Belegfeld 1 haben keine
+     Nummer, nach der der Mandant suchen könnte — sie bleiben aus der Mail und werden als
+     Rest gezählt. */
+  function mailBadList(bad, max){
+    max=max||50;
+    var out=[], skipped=0, noNumber=0, seen={};
+    for(var i=0;i<bad.length;i++){
+      var b=bad[i];
+      if(!b.doc1){ noNumber++; continue; }
+      if(seen[b.doc1]) continue;
+      seen[b.doc1]=true;
+      if(out.length>=max){ skipped++; continue; }
+      out.push('- '+b.doc1+(b.row&&b.row.iso?' vom '+deDate(b.row.iso):''));
+    }
+    return { text:out.join('\n'), count:out.length, skipped:skipped, noNumber:noNumber };
+  }
+
+  function fillTpl(tpl,ctx){
+    return String(tpl==null?'':tpl).replace(/\{(\w+)\}/g,function(m,k){
+      return Object.prototype.hasOwnProperty.call(ctx,k) ? String(ctx[k]==null?'':ctx[k]) : m;
+    });
+  }
+
+  /* cfg = { salutation, clientName, fyLabel, sender, subjectTpl, bodyTpl,
+             skipJumps, withBad, maxBad } */
+  function buildMailText(res, cfg){
+    cfg=cfg||{};
+    var g=mailGaps((res&&res.groups)||[],{ skipJumps:cfg.skipJumps });
+    var badInfo=cfg.withBad ? mailBadList((res&&res.bad)||[],cfg.maxBad)
+                            : { text:'', count:0, skipped:0, noNumber:0 };
+    var kreise=[];
+    for(var i=0;i<((res&&res.groups)||[]).length;i++)
+      kreise.push(res.groups[i].prefix||'(ohne Präfix)');
+    var ctx={
+      anrede: String(cfg.salutation||'').trim() || 'Sehr geehrte Damen und Herren,',
+      mandant: cfg.clientName||'',
+      wj: cfg.fyLabel||'',
+      anzahl: g.total,
+      anzahltext: (g.total===1 ? 'eine fehlende Rechnungsnummer'
+                               : g.total+' fehlende Rechnungsnummern'),
+      luecken: g.items.length,
+      liste: mailList(g.items),
+      kreise: kreise.join(', '),
+      abweichende: badInfo.text,
+      absender: cfg.sender||''
+    };
+    return {
+      subject: fillTpl(cfg.subjectTpl,ctx).trim(),
+      body: fillTpl(cfg.bodyTpl,ctx).replace(/\n{3,}/g,'\n\n').replace(/[ \t]+$/gm,''),
+      gaps:g, bad:badInfo, ctx:ctx
+    };
+  }
+
+  /* mailto-Länge: Outlook kürzt lange Adressen ohne Rückmeldung. Die Länge wird deshalb
+     ausgewiesen, statt auf gutes Glück zu öffnen. */
+  function mailtoHref(to,subject,body){
+    return 'mailto:'+encodeURIComponent(String(to||'').trim()).replace(/%40/g,'@')+
+           '?subject='+encodeURIComponent(String(subject||''))+
+           '&body='+encodeURIComponent(String(body||''));
+  }
+
+  /* ---------- Zentrale Stammdaten (Client Master Data 1.7.1) ---------- */
+  function emailsOf(addressee){
+    var list=(addressee&&addressee.communications)||[], out=[];
+    for(var i=0;i<list.length;i++){
+      var c=list[i];
+      if(String(c.type||'').toLowerCase()!=='email') continue;
+      var addr=String(c.data_content||'').trim();
+      if(!addr) continue;
+      out.push({ addr:addr, main:c.is_main_communication===true, note:String(c.note||'').trim() });
+    }
+    out.sort(function(a,b){ return (b.main?1:0)-(a.main?1:0); });
+    return out;
+  }
+  function nameOf(addressee, fallback){
+    if(!addressee) return fallback||'';
+    if(addressee.current_company_name) return String(addressee.current_company_name);
+    var n=[addressee.firstname,addressee.current_surname]
+      .filter(function(x){ return !!x; }).join(' ').trim();
+    return n || String(addressee.current_short_name||fallback||'');
+  }
+  function salutationOf(addressee){
+    return String((addressee&&addressee.detail&&addressee.detail.salutation)||'').trim();
+  }
+
+  /* Kurz gehalten mit Absicht: der mailto:-Link wird kodiert rund 1,5-mal so lang wie der
+     Text, und Outlook kürzt ab etwa 2.000 Zeichen ohne Rückmeldung. Mit dieser Vorlage
+     bleibt eine Mail mit rund zehn Lücken unter der Grenze. */
+  var MAIL_TPL_DEFAULT =
+'{anrede}\n\n'+
+'bei der Buchführung für {wj} sind uns Lücken in Ihrer Rechnungsnummernfolge aufgefallen. '+
+'Zu diesen Nummern liegt uns keine Rechnung vor:\n\n'+
+'{liste}\n\n'+
+'Bitte teilen Sie uns zu jeder Nummer mit, was dahintersteht: eine Rechnung, die uns noch '+
+'nicht vorliegt (dann bitte nachreichen), eine stornierte oder nie versendete Rechnung '+
+'(dann genügt eine kurze Notiz), oder eine Nummer aus einem anderen Nummernkreis (dann '+
+'bitte den Kreis nennen). Geprüft haben wir bisher: {kreise}.\n\n'+
+'Hintergrund: Nach § 14 Abs. 4 Nr. 4 UStG braucht jede Rechnung eine fortlaufende, einmalig '+
+'vergebene Nummer. Lücken sind für sich genommen kein Fehler, fallen in einer '+
+'Betriebsprüfung aber auf. Wenn wir sie vorher klären, ist das dokumentiert.\n\n'+
+'{absender}\n';
+
+  return { num:num, r2:r2, isoDate:isoDate, deDate:deDate, pad:pad,
+           toDisplayAccount:toDisplayAccount, normPosting:normPosting, dedupe:dedupe,
+           selectDebitorSoll:selectDebitorSoll, parseDoc1:parseDoc1, analyse:analyse,
+           mailGaps:mailGaps, mailList:mailList, mailBadList:mailBadList, fillTpl:fillTpl,
+           buildMailText:buildMailText, mailtoHref:mailtoHref,
+           emailsOf:emailsOf, nameOf:nameOf, salutationOf:salutationOf,
+           MAIL_TPL_DEFAULT:MAIL_TPL_DEFAULT };
+})();
+if(typeof module!=='undefined' && module.exports) module.exports=RNL;
+/* ====================== CORE-END ====================== */
+
+
+/* ===================== UI / API ===================== */
+var $ = function(id){ return document.getElementById(id); };
+
+var S = {
+  credMode:'include',
+  clients:[], clientId:'', clientName:'',
+  fys:[], fyId:'', accountLength:4,
+  debitors:[], debSet:{}, debCaption:{}, debMin:0, debMax:0,
+  debPages:0, debTruncated:false,
+  clientNumber:'', fyLabel:'',
+  contact:null, mail:null, open:{},
+  raw:[],           // normalisierte, entdoppelte Kontobuchungen
+  rows:[],          // Buchungen mit Debitor im Soll
+  other:[],         // Debitorenbuchungen, die das Kriterium nicht erfüllen
+  stat:null, collapsed:0, delivered:0, usedFilter:false, usedSelect:false,
+  excluded:{},      // vom Nutzer ausgenommene Präfixe
+  res:null
+};
+
+function fmt(n){ return (Math.round((Number(n)||0)*100)/100)
+  .toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtInt(n){ return (Number(n)||0).toLocaleString('de-DE'); }
+/* Ein-/Mehrzahl: „1 Sätze“ liest sich wie ein Fehler und lenkt vom Befund ab. */
+function plural(n,one,many){ return fmtInt(n)+' '+((Number(n)===1)?one:many); }
+function esc(s){ return String(s==null?'':s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+  .replace(/'/g,'&#39;'); }
+var deDate=RNL.deDate, isoDate=RNL.isoDate, num=RNL.num;
+
+/* ---------------- Diagnose / Statuszeilen ---------------- */
+function diag(line){
+  var el=$('diag'); if(!el) return;
+  el.textContent += (el.textContent?'\n':'')+line;
+  el.scrollTop=el.scrollHeight;
+  syncDiag();
+}
+function syncDiag(){
+  var el=$('diag');
+  el.style.display = ($('cfgDiag').checked && el.textContent) ? 'block' : 'none';
+}
+function setStatus(id,cls,html){
+  var el=$(id);
+  el.innerHTML = cls==='load' ? '<span class="spin"></span> '+html
+                              : '<span class="pill '+cls+'">'+html+'</span>';
+}
+function note(cls,html){ return '<div class="notice '+cls+'">'+html+'</div>'; }
+/* Die Abrufkarte steht in voller Breite unter den beiden schmalen Schritten.
+   Ohne Inhalt bleibt sie unsichtbar, damit keine leere Fläche Höhe frisst. */
+function setFetchCard(html){
+  $('fetchResult').innerHTML=html||'';
+  $('cardFetch').style.display=(html?'block':'none');
+}
+/* Einklappbare Blöcke.
+   Die Ergebnisbereiche werden bei jeder Einstellungsänderung neu gerendert. Würde der
+   Auf-/Zu-Zustand nur im DOM stehen, klappte ein geöffneter Block bei jedem Tastendruck
+   wieder zu. Er wird deshalb je Block-Kennung in S.open gemerkt.
+   'toggle' steigt nicht auf (bubbles: false) — der Listener hängt deshalb in der
+   Capture-Phase am Dokument. */
+function panel(id,title,meta,html,defOpen){
+  var open = Object.prototype.hasOwnProperty.call(S.open,id) ? S.open[id] : !!defOpen;
+  return '<details class="inner" data-panel="'+esc(id)+'"'+(open?' open':'')+'>'+
+    '<summary>'+title+(meta?'<span class="pmeta">'+meta+'</span>':'')+'</summary>'+
+    '<div class="ibody">'+html+'</div></details>';
+}
+document.addEventListener('toggle',function(ev){
+  var el=ev.target;
+  if(el && el.getAttribute && el.getAttribute('data-panel'))
+    S.open[el.getAttribute('data-panel')] = el.open;
+},true);
+
+/* Beim Drucken müssen alle Blöcke offen sein — sonst fehlt im Ausdruck genau das,
+   was eingeklappt war. Danach wird der vorige Zustand wiederhergestellt. */
+var printMemo=null;
+window.addEventListener('beforeprint',function(){
+  printMemo=[];
+  var all=document.querySelectorAll('details');
+  for(var i=0;i<all.length;i++){ printMemo.push([all[i],all[i].open]); all[i].open=true; }
+});
+window.addEventListener('afterprint',function(){
+  if(!printMemo) return;
+  for(var i=0;i<printMemo.length;i++) printMemo[i][0].open=printMemo[i][1];
+  printMemo=null;
+});
+
+function markDone(id){ var e=$(id); e.classList.add('done'); e.textContent='✓'; }
+function undone(id){ var e=$(id); e.classList.remove('done'); e.textContent=id.slice(1); }
+function enable(id){ $(id).classList.remove('dim'); }
+
+/* ---------------- API-Client ---------------- */
+function humanHint(status){
+  if(status===401||status===403) return ' (Verbindung und CORS sind in Ordnung — die Windows-Anmeldung '+
+    'wurde nicht akzeptiert oder die Berechtigung/Lizenz fehlt. Läuft der DATEV-Arbeitsplatz?)';
+  if(status===404) return ' (Endpunkt nicht verfügbar — häufig nicht lizenziert; /account-postings ist '+
+    'kostenpflichtig.)';
+  if(status===400) return ' (Anfrage abgelehnt — meist ein nicht unterstützter Filter- oder select-Ausdruck.)';
+  return '';
+}
+function humanErr(e){
+  var m=String(e&&e.message||e);
+  if(/Failed to fetch|NetworkError|Load failed/i.test(m))
+    return 'Keine Antwort vom Dienst ('+m+'). Der Browser hat die Antwort verworfen. Mögliche Ursachen: '+
+      'DATEVconnect läuft nicht, falscher Port bzw. falsche Adresse (fest im Quelltext, Block KONFIGURATION), oder CORS wurde abgelehnt. Die genaue Ursache steht nur '+
+      'in der Netzwerk-Konsole des Browsers (dort nach „blocked by CORS policy“ suchen).';
+  return m;
+}
+function baseUrl(){ return DATEVCONNECT_BASE.replace(/\/+$/,'')+'/accounting/v1'; }
+function qs(params){
+  return Object.keys(params||{})
+    .filter(function(k){ var v=params[k]; return v!==undefined && v!==null && v!==''; })
+    .map(function(k){ return encodeURIComponent(k)+'='+encodeURIComponent(params[k]); })
+    .join('&');
+}
+function baseUrlMd(){ return DATEVCONNECT_BASE.replace(/\/+$/,'')+'/master-data/v1'; }
+$('baseEcho').textContent = baseUrl();
+$('baseEchoMd').textContent = baseUrlMd();
+function apiGet(path,params){ return apiGetOn(baseUrl(),path,params); }
+function apiGetOn(base,path,params){
+  var q=qs(params), url=base+path+(q?'?'+q:'');
+  var opts=function(cred){ return { mode:'cors', credentials:cred, headers:{ 'Accept':'application/json' } }; };
+  return fetch(url,opts(S.credMode)).catch(function(e){
+    diag('GET '+url+' → ✗ fetch(credentials='+S.credMode+'): '+e.message);
+    var other = S.credMode==='include' ? 'omit' : 'include';
+    return fetch(url,opts(other)).then(function(r){   // zweite Hypothese, Fehler wird nicht verschluckt
+      S.credMode=other;
+      diag('  ✓ funktioniert mit credentials='+other+' — wird ab jetzt verwendet');
+      return r;
+    });
+  }).then(function(res){
+    if(!res.ok){
+      return res.text().catch(function(){ return ''; }).then(function(t){
+        diag('GET '+url+' → HTTP '+res.status+' '+String(t).slice(0,400));
+        var err=new Error('HTTP '+res.status+humanHint(res.status)+(t?' — '+String(t).slice(0,400):''));
+        err.status=res.status; err.body=t; err.url=url;
+        throw err;
+      });
+    }
+    diag('GET '+url+' → HTTP 200');
+    return res.json();
+  });
+}
+function asArr(d){ return Array.isArray(d) ? d : ((d && (d.value||d.items)) || []); }
+function apiGetList(path,params){ return apiGet(path,params).then(asArr); }
+
+/* Blätterung für Endpunkte, die skip/top kennen (hier: /debitors).
+   Die Spezifikation warnt, dass mehr Sätze als top geliefert werden können —
+   deshalb wird um die tatsächlich gelieferte Anzahl weitergeblättert. */
+function apiGetAll(path,params,top,maxPages){
+  top=top||1000; maxPages=maxPages||50;
+  var out=[], pages=0, skip=0, truncated=false;
+  function step(){
+    var p={}; for(var k in params) if(Object.prototype.hasOwnProperty.call(params,k)) p[k]=params[k];
+    p.top=top; if(skip) p.skip=skip;
+    return apiGetList(path,p).then(function(list){
+      pages++;
+      for(var i=0;i<list.length;i++) out.push(list[i]);
+      if(!list.length) return;
+      skip+=list.length;
+      if(list.length<top) return;
+      if(pages>=maxPages){ truncated=true; return; }
+      return step();
+    });
+  }
+  return step().then(function(){ return { list:out, pages:pages, truncated:truncated }; });
+}
+
+/* =====================================================================
+   1 · MANDANT UND WIRTSCHAFTSJAHR
+   ===================================================================== */
+$('btnConnect').onclick = function(){
+  setStatus('connStatus','load','Mandanten werden gelesen…');
+  return apiGetList('/clients').then(function(list){
+    S.clients=list;
+    if(!S.clients.length){ setStatus('connStatus','warn','Keine Mandanten geliefert'); return; }
+    S.clients.sort(function(a,b){
+      return String(a.number||'').localeCompare(String(b.number||''),'de',{numeric:true}); });
+    $('selClient').innerHTML = S.clients.map(function(c,i){
+      return '<option value="'+i+'">'+esc((c.number?c.number+' · ':'')+(c.name||c.id))+'</option>'; }).join('');
+    $('selClient').selectedIndex=0;
+    $('selects').style.display='block';
+    setStatus('connStatus','ok',plural(S.clients.length,'Mandant geladen','Mandanten geladen'));
+    return onClientChange();
+  }).catch(function(e){
+    setStatus('connStatus','err','Fehlgeschlagen');
+    $('connStatus').insertAdjacentHTML('afterend',
+      note('err','<b>Mandantenabruf fehlgeschlagen.</b><pre>'+esc(String(e.url||baseUrl()))+'\n\n'+
+        esc(humanErr(e))+'</pre>'));
+  });
+};
+
+/* Sequenznummer für die verschachtelten Abrufe (Mandant → Wirtschaftsjahre → WJ-Detail):
+   eine langsame Antwort zu einer verworfenen Auswahl darf den aktuellen Zustand nicht
+   überschreiben. */
+var reqSeq=0;
+function setSelBusy(b){ $('selClient').disabled=b; $('selFy').disabled=b; }
+
+function onClientChange(){
+  var c=S.clients[+$('selClient').value]; if(!c) return Promise.resolve();
+  var my=++reqSeq;
+  S.clientId=c.id; S.clientName=(c.number?c.number+' · ':'')+(c.name||c.id);
+  S.clientNumber=String(c.number==null?'':c.number);
+  S.clientPlain=String(c.name||c.id||'');
+  S.fyId=''; S.fys=[];
+  $('selFy').innerHTML=''; $('fyInfo').style.display='none';
+  resetFrom2();
+  setSelBusy(true);
+  return apiGetList('/clients/'+encodeURIComponent(c.id)+'/fiscal-years').then(function(fys){
+    if(my!==reqSeq) return;
+    fys.sort(function(a,b){ return String(b.id||'').localeCompare(String(a.id||'')); });
+    S.fys=fys;
+    if(!S.fys.length){
+      $('fyInfo').style.display='block'; $('fyInfo').className='notice warn';
+      $('fyInfo').innerHTML='<b>Kein Wirtschaftsjahr gefunden.</b> Der Mandant hat keine '+
+        'Buchführung in DATEVconnect.';
+      return;
+    }
+    $('selFy').innerHTML = S.fys.map(function(f,i){
+      var b=isoDate(f.begin)||f.id, e=isoDate(f.end);
+      return '<option value="'+i+'">'+esc(deDate(b)+(e?' – '+deDate(e):'')+
+        (i===0&&S.fys.length>1?'  (neuestes)':'')+(f.is_locked?'  (gesperrt)':''))+'</option>';
+    }).join('');
+    $('selFy').selectedIndex=0;      // neuestes Wirtschaftsjahr ausdrücklich vorwählen
+    return applyFy(my);
+  }).catch(function(e){
+    if(my!==reqSeq) return;
+    $('fyInfo').style.display='block'; $('fyInfo').className='notice err';
+    $('fyInfo').innerHTML='<b>Wirtschaftsjahre konnten nicht gelesen werden.</b><pre>'+
+      esc(humanErr(e))+'</pre>';
+  }).then(function(){ if(my===reqSeq) setSelBusy(false); });
+}
+
+function renderFyInfo(f,L){
+  var box=$('fyInfo'); box.style.display='block';
+  var locked=f.is_locked, newest=!!(S.fys[0]&&S.fys[0].id===f.id);
+  var b=isoDate(f.begin)||f.id, e=isoDate(f.end);
+  box.className='notice '+(locked?'warn':'ok');
+  box.innerHTML='<b>'+esc(S.clientName)+'</b> · Wirtschaftsjahr <b>'+esc(deDate(b))+
+    (e?' – '+esc(deDate(e)):'')+'</b>'+
+    (newest?' <span class="pill ok">neuestes</span>':' <span class="pill warn">nicht das neueste</span>')+
+    ' · Sachkontenlänge <b>'+esc(S.accountLength)+'</b>'+(L?'':' (nicht geliefert, Vorgabe 4)')+
+    ' · SKR '+esc(String(f.account_system||'—'))+
+    '<br>Eine Lücke an der Jahresgrenze ist keine fehlende Rechnung: der Vorgänger der kleinsten '+
+    'und der Nachfolger der größten Nummer liegen außerhalb dieses Wirtschaftsjahres.';
+  box.classList.remove('flash'); void box.offsetWidth; box.classList.add('flash');
+}
+
+function applyFy(seq){
+  var my=(seq===undefined)?++reqSeq:seq;
+  var f=S.fys[+$('selFy').value]; if(!f) return Promise.resolve();
+  var changed=(f.id!==S.fyId);
+  S.fyId=f.id;
+  S.fyLabel=(function(){
+    var b=isoDate(f.begin), e=isoDate(f.end);
+    if(b && e) return deDate(b)+' – '+deDate(e);
+    return String(f.id||'');
+  })();
+  if(changed) resetFrom2();
+  var L=f.account_length;
+  var pre = (!L && (changed || !S.accountLength))
+    ? apiGet('/clients/'+encodeURIComponent(S.clientId)+'/fiscal-years/'+encodeURIComponent(f.id))
+        .then(function(det){ if(my===reqSeq && det) L=det.account_length; })
+        .catch(function(err){ diag('Sachkontenlänge: Detailabruf fehlgeschlagen — '+err.message); })
+    : Promise.resolve();
+  return pre.then(function(){
+    if(my!==reqSeq) return;
+    if(changed || L) S.accountLength = L || 4;
+    renderFyInfo(f,L);
+    markDone('s1'); enable('card2');
+  });
+}
+$('selClient').onchange = onClientChange;
+$('selFy').onchange = function(){ applyFy(); };
+/* Auf einen BEREITS gewählten Eintrag feuert der Browser laut HTML-Spezifikation kein
+   change-Event. Da das neueste Wirtschaftsjahr vorausgewählt ist, wäre genau dieser Eintrag
+   ohne jede Reaktion — er ließe sich scheinbar nicht auswählen. Ein Klick bestätigt deshalb
+   zusätzlich die aktuelle Auswahl; bei unveränderter Auswahl bleiben die Daten erhalten. */
+$('selFy').onclick = function(){ if(S.fys.length && !$('selFy').disabled) applyFy(); };
+
+function pathFy(suffix){
+  return '/clients/'+encodeURIComponent(S.clientId)+
+         '/fiscal-years/'+encodeURIComponent(S.fyId)+suffix;
+}
+function debDisplay(acc){ return RNL.toDisplayAccount(acc,S.accountLength,true); }
+function debLabel(acc){
+  var cap=S.debCaption[String(acc)];
+  return debDisplay(acc)+(cap?' · '+cap:'');
+}
+
+/* =====================================================================
+   2 · ABRUF
+   ===================================================================== */
+var POSTING_FIELDS = 'id,account_number,contra_account_number,amount_debit,amount_credit,date,'+
+  'document_field1,document_field2,posting_description,general_reversal,'+
+  'is_opening_balance_posting,accounting_sequence_id';
+
+function topSize(){
+  var n=parseInt(String($('cfgTop').value).replace(/\D/g,''),10);
+  return (isFinite(n)&&n>0)?Math.min(n,5000):1000;
+}
+
+$('btnFetch').onclick = function(){ doFetch(); };
+
+function doFetch(){
+  if(!S.clientId||!S.fyId){ setStatus('fetchStatus','err','Kein Wirtschaftsjahr gewählt'); return; }
+  resetFrom2();
+  setStatus('fetchStatus','load','Debitorenstammdaten werden gelesen…');
+
+  return apiGetAll(pathFy('/debitors'),{ select:'account_number,caption,short_name' },topSize(),50)
+    .catch(function(e){
+      diag('Debitoren mit select abgelehnt ('+(e.status||'?')+') — zweiter Versuch ohne select');
+      return apiGetAll(pathFy('/debitors'),{},topSize(),50);
+    })
+    .then(function(res){
+      S.debitors=res.list; S.debSet={}; S.debCaption={};
+      var min=null,max=null;
+      for(var i=0;i<res.list.length;i++){
+        var d=res.list[i];
+        var acc=d.account_number!=null?num(d.account_number):(d.id!=null?num(d.id):0);
+        if(!acc) continue;
+        S.debSet[String(acc)]=true;
+        var cap=String(d.caption||d.short_name||'').trim();
+        if(cap) S.debCaption[String(acc)]=cap;
+        if(min===null||acc<min) min=acc;
+        if(max===null||acc>max) max=acc;
+      }
+      S.debMin=min||0; S.debMax=max||0;
+      S.debPages=res.pages; S.debTruncated=res.truncated;
+      if(!S.debMin) throw new Error('Es wurde kein Debitorenkonto geliefert — ohne Debitorenstammdaten '+
+        'lässt sich nicht bestimmen, welche Kontonummern Debitoren sind. Prüfung abgebrochen.');
+      setStatus('fetchStatus','load',fmtInt(res.list.length)+' Debitoren gelesen — Kontobuchungen werden geladen…');
+      var params={};
+      S.usedFilter=$('cfgFilter').checked;
+      S.usedSelect=$('cfgSelect').checked;
+      if(S.usedFilter) params.filter='account_number ge '+S.debMin+' and account_number le '+S.debMax;
+      if(S.usedSelect) params.select=POSTING_FIELDS;
+      return apiGetList(pathFy('/account-postings'),params).catch(function(e){
+        if(e.status===400 && S.usedSelect){
+          diag('account-postings mit select abgelehnt (400) — zweiter Versuch ohne select');
+          S.usedSelect=false;
+          var p2={}; if(S.usedFilter) p2.filter=params.filter;
+          return apiGetList(pathFy('/account-postings'),p2);
+        }
+        throw e;
+      });
+    })
+    .then(function(raw){
+      S.delivered=raw.length;
+      var normed=[];
+      for(var i=0;i<raw.length;i++) normed.push(RNL.normPosting(raw[i]));
+      var dd=RNL.dedupe(normed);
+      S.raw=dd.list; S.collapsed=dd.collapsed;
+      var sel=RNL.selectDebitorSoll(S.raw,S.debSet,$('cfgContra').checked);
+      S.rows=sel.rows; S.other=sel.other; S.stat=sel.stat;
+      S.excluded={};
+      setFetchCard(renderFetch());
+      setStatus('fetchStatus','ok',fmtInt(S.rows.length)+' Rechnungsbuchungen');
+      markDone('s2'); enable('card3');
+      runAnalysis();
+    })
+    .catch(function(e){
+      setStatus('fetchStatus','err','Fehlgeschlagen');
+      var extra='';
+      if(e.status===400 && S.usedFilter)
+        extra='<div style="margin-top:9px">Der Serverfilter auf den Debitorenbereich wurde abgelehnt. '+
+          'Sie können den Abruf ohne Serverfilter wiederholen; dann werden <b>alle</b> Kontobuchungen '+
+          'des Wirtschaftsjahres geladen und erst im Browser eingegrenzt — das kann deutlich länger '+
+          'dauern.<div class="btnrow" style="margin-top:10px">'+
+          '<button class="btn sec" id="btnNoFilter">Ohne Serverfilter erneut versuchen</button></div></div>';
+      setFetchCard(note('err','<b>Abruf fehlgeschlagen.</b><pre>'+
+        esc(String(e.url||baseUrl()))+'\n\n'+esc(humanErr(e))+'</pre>'+extra));
+      var b=$('btnNoFilter');
+      if(b) b.onclick=function(){ $('cfgFilter').checked=false; doFetch(); };
+    });
+}
+
+function renderFetch(){
+  var st=S.stat, html='';
+  html+='<div class="kpis">'+
+    kpi('Debitorenkonten',fmtInt(S.debitors.length),debDisplay(S.debMin)+' bis '+debDisplay(S.debMax))+
+    kpi('Buchungen geliefert',fmtInt(S.delivered),S.collapsed?fmtInt(S.collapsed)+' identisch doppelt':'ohne Dopplung')+
+    kpi('Debitor im Soll',fmtInt(S.rows.length),'Grundlage der Prüfung','accent')+
+    kpi('Debitorenbuchungen sonstige',fmtInt(S.other.length),'Zahlungen, Gutschriften, Stornos')+
+  '</div>';
+
+  html+=panel('umfang','Umfang des Abrufs',
+    (S.usedFilter?'mit Serverfilter':'ohne Serverfilter')+
+    (S.usedSelect?' · mit select':' · ohne select')+' · '+S.debPages+' Seite(n) Debitoren',
+    (S.usedFilter
+      ? 'Serverfilter <code>account_number ge '+S.debMin+' and account_number le '+S.debMax+'</code>.'
+      : 'Ohne Serverfilter — es wurden alle Kontobuchungen des Wirtschaftsjahres geladen und erst '+
+        'im Browser eingegrenzt.')+
+    (S.usedSelect?' Mit <code>select</code> auf die benötigten Felder.':' Ohne <code>select</code>.')+
+    '<div style="margin-top:7px">Der Endpunkt <code>/account-postings</code> kennt laut '+
+    'Spezifikation <b>keine</b> Parameter <code>skip</code>/<code>top</code> — es gibt weder Blätterung '+
+    'noch einen Hinweis auf eine unvollständige Lieferung. Die Debitorenstammdaten wurden in '+
+    S.debPages+' Seite(n) mit <code>top='+topSize()+'</code> gelesen. Buchungen mit Fehlerkennzeichen '+
+    'und Buchungsvorschläge liefert der Endpunkt laut Spezifikation nicht mit.</div>',false);
+
+  if(S.debTruncated)
+    html+=note('err','<b>Der Abruf der Debitorenstammdaten wurde nach '+S.debPages+' Seiten abgebrochen.</b> '+
+      'Die Debitorenliste ist damit <b>unvollständig</b> — Buchungen auf nicht gelesene Debitoren fehlen in '+
+      'der Prüfung. Bitte die Seitengröße in den Einstellungen erhöhen und erneut abrufen.');
+
+  /* Lieferform: welche Kombination liefert dieses DATEVconnect überhaupt?
+     Ob derselbe Buchungssatz auch spiegelbildlich mit dem Debitor im Gegenkonto
+     geliefert wird, ist nicht belegt — deshalb werden alle vier Fälle gezählt. */
+  var formTable='<p class="sub" style="margin-bottom:0">Gezählt über alle gelieferten Sätze. Daraus '+
+    'ist am Echtsystem ablesbar, in welcher Form Debitorenbuchungen ankommen — geraten wird nichts.</p>'+
+    '<div class="tablewrap flat"><table><thead><tr><th>Kombination</th><th class="num">Sätze</th>'+
+    '<th>Bedeutung</th></tr></thead><tbody>'+
+    formRow('Debitor in <code>account_number</code>, <code>amount_debit</code> &gt; 0',st.accDebit,
+      'Rechnung — <b>Grundlage dieser Prüfung</b>')+
+    formRow('Debitor in <code>account_number</code>, <code>amount_credit</code> &gt; 0',st.accCredit,
+      'Zahlung, Gutschrift oder Ausbuchung auf dem Debitor')+
+    formRow('Debitor in <code>contra_account_number</code>, <code>amount_credit</code> &gt; 0',st.contraCredit,
+      'Rechnung, falls der Satz aus Sicht des Erlöskontos geliefert wird '+
+      (($('cfgContra').checked)?'— <b>wird mitgezählt</b>':'— wird <b>nicht</b> mitgezählt'))+
+    formRow('Debitor in <code>contra_account_number</code>, <code>amount_debit</code> &gt; 0',st.contraDebit,
+      'Zahlung/Gutschrift aus Sicht des Gegenkontos')+
+    formRow('Debitor auf <b>beiden</b> Seiten',st.bothSides,'Umbuchung Debitor an Debitor — einmal gewertet')+
+    formRow('kein Debitor beteiligt',st.noDebitor,'nicht relevant')+
+    '</tbody></table></div>';
+  html+=panel('lieferform','Lieferform der Buchungen',
+    'Soll '+fmtInt(st.accDebit)+' · Haben '+fmtInt(st.accCredit)+
+    ' · Gegenkonto/Haben '+fmtInt(st.contraCredit),formTable,false);
+
+  if(!$('cfgContra').checked && st.contraCredit>0)
+    html+=note('warn','<b>'+plural(st.contraCredit,'Satz hat','Sätze haben')+
+      ' einen Debitor im Gegenkonto und einen '+
+      'Habenbetrag.</b> Wenn Ihr DATEVconnect Rechnungen in dieser Form liefert, fehlen sie in der Prüfung. '+
+      'Die Rohwerte stehen unten; prüfen Sie an einer bekannten Rechnung, welche Form zutrifft, und '+
+      'schalten Sie in den Einstellungen bei Bedarf die Gegenkonto-Seite dazu.');
+
+  if(st.negative>0)
+    html+=note('warn','<b>'+plural(st.negative,'Debitorenbuchung enthält','Debitorenbuchungen enthalten')+
+      ' einen negativen Betrag.</b> '+
+      'Das sind typischerweise Generalumkehrbuchungen. Als Rechnung gewertet wird nur ein '+
+      '<b>positiver</b> Sollbetrag; die Rohwerte dieser Sätze stehen unten und werden nicht umgedeutet.');
+
+  html+=rawDetails();
+  return html;
+}
+function kpi(l,v,d,cls){
+  return '<div class="kpi'+(cls?' '+cls:'')+'"><div class="l">'+l+'</div><div class="v">'+v+'</div>'+
+    (d?'<div class="d">'+d+'</div>':'')+'</div>';
+}
+function formRow(label,n,meaning){
+  return '<tr><td>'+label+'</td><td class="num">'+fmtInt(n)+'</td><td>'+meaning+'</td></tr>';
+}
+
+/* Rohwerte-Ansicht: bei unklarer Lieferform wird nicht gerechnet, sondern gezeigt. */
+function rawDetails(){
+  var odd=[];
+  for(var i=0;i<S.other.length;i++){
+    var p=S.other[i];
+    if(p.reversal || p.debit<0 || p.credit<0) odd.push(p);
+  }
+  var contraRows=[];
+  if(!$('cfgContra').checked){
+    for(i=0;i<S.raw.length && contraRows.length<50;i++){
+      var q=S.raw[i];
+      if(S.debSet[String(q.contra)]===true && q.credit>0) contraRows.push(q);
+    }
+  }
+  var inner='<p class="sub" style="margin-bottom:0">Die Felder stehen so, wie DATEVconnect sie '+
+    'geliefert hat — ohne Umrechnung.</p>';
+  inner+=rawTable('Die ersten 25 gewerteten Rechnungsbuchungen',S.rows.slice(0,25));
+  if(odd.length) inner+=rawTable('Generalumkehr oder negativer Betrag ('+fmtInt(odd.length)+
+    ' Sätze, erste 25)',odd.slice(0,25));
+  if(contraRows.length) inner+=rawTable('Debitor im Gegenkonto mit Habenbetrag (erste '+contraRows.length+
+    ' Sätze) — derzeit nicht gewertet',contraRows);
+  return panel('rohwerte','Rohwerte ansehen',
+    fmtInt(S.rows.length)+' gewertet'+(odd.length?' · '+fmtInt(odd.length)+' mit Storno/negativ':'')+
+    (contraRows.length?' · '+fmtInt(contraRows.length)+' Gegenkonto-Seite':''),inner,false);
+}
+function rawTable(title,list){
+  if(!list.length) return '';
+  var h='<h4 style="margin:16px 0 0;font-size:.9rem">'+esc(title)+'</h4>'+
+    '<div class="tablewrap"><table><thead><tr>'+
+    '<th>id</th><th>account_number</th><th>contra_account_number</th>'+
+    '<th class="num">amount_debit</th><th class="num">amount_credit</th>'+
+    '<th>date</th><th>document_field1</th><th>general_reversal</th><th>posting_description</th>'+
+    '</tr></thead><tbody>';
+  for(var i=0;i<list.length;i++){
+    var p=list[i];
+    h+='<tr><td class="mono">'+esc(p.id)+'</td><td class="mono">'+esc(String(p.account))+'</td>'+
+       '<td class="mono">'+esc(String(p.contra))+'</td>'+
+       '<td class="num mono">'+esc(String(p.debit))+'</td>'+
+       '<td class="num mono">'+esc(String(p.credit))+'</td>'+
+       '<td class="mono">'+esc(p.iso)+'</td><td class="mono">'+esc(p.doc1)+'</td>'+
+       '<td class="mono">'+(p.reversal?'true':'false')+'</td>'+
+       '<td><span class="txt">'+esc(p.text)+'</span></td></tr>';
+  }
+  return h+'</tbody></table></div>';
+}
+
+/* =====================================================================
+   3 · PRÜFUNG
+   ===================================================================== */
+function startPos(){
+  var n=parseInt(String($('cfgStart2').value).replace(/\D/g,''),10);
+  if(!isFinite(n)||n<1) n=1; if(n>36) n=36;
+  return n;
+}
+function strictWidth(){ return $('cfgWidth2').value==='strict'; }
+function gapWarn(){
+  var n=parseInt(String($('cfgGapWarn').value).replace(/\D/g,''),10);
+  return (isFinite(n)&&n>=2)?n:50;
+}
+
+function runAnalysis(){
+  if(!S.rows.length){
+    $('prefixBox').innerHTML='';
+    $('result').innerHTML=note('warn','<b>Es liegt keine Buchung mit einem Debitorenkonto im Soll vor.</b> '+
+      'Damit ist keine Rechnungsnummer prüfbar. Die Zählung unter „Lieferform“ in Schritt 2 zeigt, '+
+      'welche Kombinationen überhaupt geliefert wurden.');
+    exportsEnabled(false);
+    S.res=null; buildMail();
+    return;
+  }
+  S.res=RNL.analyse(S.rows,{ startPos:startPos(), strictWidth:strictWidth(),
+                             gapWarn:gapWarn(), maxListPerGap:500, excluded:S.excluded });
+  renderEchos();
+  $('prefixBox').innerHTML=renderPrefixBox(S.res);
+  bindPrefixBox();
+  $('result').innerHTML=renderResult(S.res);
+  exportsEnabled(true);
+  markDone('s3'); enable('card4');
+  buildMail();
+}
+
+function renderEchos(){
+  var sp=startPos(), pl=sp-1;
+  $('startEcho').innerHTML='Präfix = die ersten <b>'+pl+'</b> Zeichen, Zähler = alles ab Stelle <b>'+sp+'</b>'+
+    (pl===0?' (kein Präfix)':'');
+  var ex='', shown=0, seen={};
+  for(var i=0;i<S.rows.length && shown<3;i++){
+    var d=S.rows[i].doc1; if(!d||seen[d]) continue; seen[d]=true;
+    var p=RNL.parseDoc1(d,sp);
+    ex+='<div class="mono">'+esc(d)+' → '+(p.ok
+      ? '<b>'+esc(p.prefix||'(ohne)')+'</b> + '+esc(p.counterStr)
+      : '<span style="color:var(--aha-red)">passt nicht</span>')+'</div>';
+    shown++;
+  }
+  $('splitEcho').innerHTML=ex||'—';
+}
+
+function renderPrefixBox(res){
+  if(!res.prefixStats.length)
+    return note('warn','<b>Keine einzige Rechnungsnummer entspricht der Regel.</b> '+
+      'Prüfen Sie die Stelle, ab der der Zähler beginnt — die Beispiele oben zeigen die Zerlegung.');
+  var meta=[], off=0;
+  for(var q=0;q<res.prefixStats.length;q++){
+    var ps=res.prefixStats[q];
+    if(ps.excluded) off++;
+    if(meta.length<4) meta.push(esc(ps.prefix||'(ohne)')+' '+fmtInt(ps.count));
+  }
+  if(res.prefixStats.length>4) meta.push('+'+(res.prefixStats.length-4)+' weitere');
+  if(off) meta.push(off+' abgewählt');
+  var html='<div class="tablewrap"><table><thead><tr><th>prüfen</th><th>Präfix</th><th class="num">Nummern</th>'+
+    '<th class="num">Zählerstellen</th><th>Längen</th></tr></thead><tbody>';
+  for(var i=0;i<res.prefixStats.length;i++){
+    var p=res.prefixStats[i];
+    var widths=Object.keys(p.widths).sort(function(a,b){return +a-+b;})
+      .map(function(w){ return w+'-stellig: '+fmtInt(p.widths[w]); }).join(' · ');
+    html+='<tr><td><input type="checkbox" class="pfx" data-pfx="'+esc(p.prefix)+'"'+
+      (p.excluded?'':' checked')+'></td>'+
+      '<td class="mono"><b>'+esc(p.prefix||'(ohne Präfix)')+'</b></td>'+
+      '<td class="num">'+fmtInt(p.count)+'</td>'+
+      '<td class="num">'+p.width+'</td>'+
+      '<td>'+esc(widths)+(p.mixedWidth?' <span class="pill warn">gemischt</span>':'')+'</td></tr>';
+  }
+  html+='</tbody></table></div>';
+  return panel('praefixe','Gefundene Präfixe ('+fmtInt(res.prefixStats.length)+')',
+    meta.join(' · '),html,res.prefixStats.length<=4);
+}
+function bindPrefixBox(){
+  var boxes=document.querySelectorAll('input.pfx');
+  for(var i=0;i<boxes.length;i++){
+    boxes[i].onchange=function(){
+      var p=this.getAttribute('data-pfx');
+      if(this.checked) delete S.excluded[p]; else S.excluded[p]=true;
+      runAnalysis();
+    };
+  }
+}
+
+function renderResult(res){
+  var html='';
+
+  /* ---------- Kennzahlen ---------- */
+  html+='<h3 class="block">Ergebnis</h3>';
+  html+='<div class="kpis">'+
+    kpi('Geprüfte Rechnungsnummern',fmtInt(res.checkedNumbers),
+        fmtInt(res.postings)+' Buchungen im Soll')+
+    kpi('Fehlende Nummern',fmtInt(res.missingTotal),
+        plural(res.gapCount,'Lücke','Lücken')+(res.jumpCount?', davon '+
+          plural(res.jumpCount,'Sprung','Sprünge'):''),res.missingTotal?'accent':'good')+
+    kpi('Nicht im Schema',fmtInt(res.bad.length),'siehe zweite Liste',res.bad.length?'accent':'good')+
+    kpi('Geprüfte Folgen',fmtInt(res.groups.length),'je Präfix eine')+
+  '</div>';
+
+  /* ---------- Liste 1: fehlende Nummern ---------- */
+  html+='<h3 class="block">Folgende Rechnungsnummern fehlen</h3>';
+  if(!res.groups.length){
+    html+=note('warn','Keine prüfbare Folge — alle Nummern stehen in der zweiten Liste.');
+  }else if(!res.missingTotal){
+    html+=note('ok','<b>Keine Lücke.</b> In allen '+fmtInt(res.groups.length)+' geprüften Folgen sind die '+
+      'Nummern von der kleinsten bis zur größten vollständig vorhanden.');
+  }
+  for(var i=0;i<res.groups.length;i++) html+=renderGroup(res.groups[i]);
+
+  /* ---------- Liste 2: nicht im Schema ---------- */
+  html+='<h3 class="block">Folgende Rechnungsnummern passen nicht in das Schema</h3>';
+  if(!res.bad.length){
+    html+=note('ok','<b>Keine.</b> Jede Buchung im Soll eines Debitors trägt in Belegfeld 1 eine Nummer, '+
+      'die der Regel „Zähler ab Stelle '+res.startPos+'“ entspricht.');
+  }else{
+    var kinds={ form:'Aufbau passt nicht zur Regel', width:'abweichende Zählerlänge',
+                excluded:'Präfix ausgenommen' };
+    var counts={};
+    for(i=0;i<res.bad.length;i++) counts[res.bad[i].kind]=(counts[res.bad[i].kind]||0)+1;
+    var parts=[];
+    for(var k in counts) if(Object.prototype.hasOwnProperty.call(counts,k))
+      parts.push(fmtInt(counts[k])+' × '+(kinds[k]||k));
+    var badHtml=note('warn','<b>'+plural(res.bad.length,'Buchung','Buchungen')+'</b> — '+parts.join(' · ')+
+      '. Sie sind in keiner Lückenprüfung enthalten.');
+    badHtml+='<div class="tablewrap"><table><thead><tr><th>Belegfeld 1</th><th>Grund</th><th>Debitor</th>'+
+      '<th>Belegdatum</th><th class="num">Betrag</th><th>Buchungstext</th><th>Stapel</th>'+
+      '</tr></thead><tbody>';
+    for(i=0;i<res.bad.length;i++){
+      var b=res.bad[i], r=b.row;
+      badHtml+='<tr><td class="mono"><b>'+esc(b.doc1||'—')+'</b></td>'+
+        '<td>'+esc(b.reason)+'</td>'+
+        '<td class="mono">'+esc(debLabel(r.deb))+'</td>'+
+        '<td>'+esc(deDate(r.iso))+'</td>'+
+        '<td class="num">'+fmt(r.amount)+'</td>'+
+        '<td><span class="txt">'+esc(r.text)+'</span></td>'+
+        '<td class="mono">'+esc(r.seq)+'</td></tr>';
+    }
+    badHtml+='</tbody></table></div>';
+    html+=panel('nichtschema',plural(res.bad.length,'Nummer','Nummern')+' aufklappen',parts.join(' · '),
+      badHtml,res.bad.length<=12);
+  }
+
+  /* ---------- Nummern auf mehreren Debitoren ---------- */
+  if(res.conflicts.length){
+    var cHtml=note('err','<b>'+fmtInt(res.conflicts.length)+' Rechnungsnummern kommen auf mehr als '+
+      'einem Debitorenkonto vor.</b> Mehrere Buchungen derselben Nummer auf <b>einem</b> Debitor sind '+
+      'eine Splitbuchung und werden hier nicht aufgeführt.');
+    cHtml+='<div class="tablewrap"><table><thead><tr><th>Nummer</th><th>Debitoren</th><th>Buchungen</th>'+
+      '</tr></thead><tbody>';
+    for(i=0;i<res.conflicts.length;i++){
+      var c=res.conflicts[i], labels=[];
+      for(var j=0;j<c.debitors.length;j++) labels.push(debLabel(c.debitors[j]));
+      cHtml+='<tr><td class="mono"><b>'+esc(c.number)+'</b></td><td>'+esc(labels.join(' · '))+'</td>'+
+        '<td class="num">'+fmtInt(c.rows.length)+'</td></tr>';
+    }
+    cHtml+='</tbody></table></div>';
+    html+='<h3 class="block">Dieselbe Nummer auf mehreren Debitoren</h3>'+
+      panel('konflikte',plural(res.conflicts.length,'Nummer','Nummern')+' aufklappen','',cHtml,
+            res.conflicts.length<=12);
+  }
+
+  html+=panel('grenzen','Was diese Prüfung nicht leisten kann','',
+    'Sie vergleicht ausschließlich die in Belegfeld 1 vergebenen Nummern gegeneinander. Eine '+
+    'Rechnung, die überhaupt nicht gebucht wurde und deren Nummer am Ende der Folge liegt, '+
+    'hinterlässt keine Lücke. Ebenso bleibt eine Rechnung unentdeckt, die in ein anderes '+
+    'Wirtschaftsjahr oder auf ein Nicht-Debitorenkonto gebucht wurde. Die Randnummern jeder Folge '+
+    'sind nicht prüfbar: Vorgänger und Nachfolger liegen außerhalb dieses Wirtschaftsjahres.',false);
+  return html;
+}
+
+function renderGroup(g){
+  /* Eine Folge mit einer einzigen Nummer ist nicht „lückenlos“ — sie ist nicht prüfbar.
+     Das wird so benannt, statt einen grünen Haken vorzutäuschen. */
+  var status = (g.numbers<2)
+    ? '<span class="pill neutral">nur eine Nummer — nicht prüfbar</span>'
+    : (g.missingCount
+        ? '<span class="pill err">'+plural(g.missingCount,'fehlt','fehlen')+'</span>'
+        : '<span class="pill ok">lückenlos</span>');
+  var html='<div style="margin-top:18px"><b class="mono" style="font-size:1rem">'+
+    esc(g.prefix||'(ohne Präfix)')+'</b> · '+plural(g.numbers,'Nummer','Nummern')+
+    ' von <span class="mono">'+esc(g.minNumber)+'</span> bis <span class="mono">'+
+    esc(g.maxNumber)+'</span>'+(g.numbers>1?' · Spanne '+fmtInt(g.span):'')+' · '+status+'</div>';
+
+  if(g.mixedWidth && !S.res.strictWidth)
+    html+=note('warn','Die Zählerlänge ist in dieser Folge nicht einheitlich. Verglichen wurde der '+
+      'Zahlenwert; die fehlenden Nummern sind auf '+g.width+' Stellen dargestellt.');
+
+  if(g.comparable>0 && g.inversions>g.comparable*0.2)
+    html+=note('warn','Bei '+fmtInt(g.inversions)+' von '+fmtInt(g.comparable)+' aufeinanderfolgenden '+
+      'Nummern sinkt das Belegdatum. In einem fortlaufenden Rechnungskreis steigt es. Das deutet darauf '+
+      'hin, dass unter diesem Präfix <b>mehrere</b> Nummernkreise liegen — dann sind die unten gemeldeten '+
+      'Lücken nicht belastbar.');
+
+  if(!g.gaps.length) return html;
+
+  var tbl='<div class="tablewrap"><table class="gaptab"><thead><tr><th>Fehlende Nummern</th>'+
+    '<th class="num">Anzahl</th><th>Vorherige vorhandene Rechnung</th>'+
+    '<th>Nächste vorhandene Rechnung</th></tr></thead><tbody>';
+  for(var i=0;i<g.gaps.length;i++){
+    var gp=g.gaps[i];
+    var chips='';
+    for(var j=0;j<gp.numbers.length;j++) chips+='<span class="chip">'+esc(gp.numbers[j])+'</span>';
+    if(gp.truncated) chips+='<span class="chip neutral">… und '+fmtInt(gp.count-gp.numbers.length)+
+      ' weitere bis '+esc(g.prefix+RNL.pad(gp.toCounter,g.width))+'</span>';
+    tbl+='<tr><td style="white-space:normal"><div class="chips">'+chips+'</div>'+
+      (gp.jump?'<div style="margin-top:6px;font-size:.79rem;color:var(--warn)"><b>Sprung:</b> '+
+        fmtInt(gp.count)+' Nummern in Folge — möglicherweise ein Nummernsprung oder ein fremder '+
+        'Rechnungskreis, nicht '+fmtInt(gp.count)+' fehlende Rechnungen.</div>':'')+'</td>'+
+      '<td class="num">'+fmtInt(gp.count)+'</td>'+
+      '<td>'+ctx(gp.prev)+'</td><td>'+ctx(gp.next)+'</td></tr>';
+  }
+  tbl+='</tbody></table></div>';
+  /* Bis zu zwölf Lücken stehen offen da; darüber wird eingeklappt, damit eine Folge mit
+     hunderten Lücken nicht den ganzen Bildschirm füllt. Der gewählte Zustand bleibt. */
+  return html+panel('gaps:'+g.prefix,
+    plural(g.gaps.length,'Lücke','Lücken')+' mit '+plural(g.missingCount,'Nummer','Nummern')+' aufklappen',
+    (g.jumpCount?plural(g.jumpCount,'davon mit Sprungverdacht','davon mit Sprungverdacht'):''),
+    tbl, g.gaps.length<=12);
+}
+function ctx(entry){
+  if(!entry) return '—';
+  var r=entry.row;
+  return '<span class="mono">'+esc(entry.doc1)+'</span><br>'+
+    '<span style="font-size:.79rem;color:var(--muted)">'+esc(deDate(r.iso))+' · '+
+    esc(debLabel(r.deb))+' · '+fmt(r.amount)+' €</span>';
+}
+
+/* =====================================================================
+   4 · KLÄRUNG BEIM MANDANTEN ANFRAGEN
+   ---------------------------------------------------------------------
+   Empfänger und Briefanrede kommen aus den ZENTRALEN Stammdaten
+   (Client Master Data 1.7.1, eigene Basis /datev/api/master-data/v1):
+     GET /clients/{guid}   -> legal_person_id / natural_person_id
+     GET /addressees/{id}?expand=detail,communications,contact_persons
+         -> current_company_name bzw. firstname + current_surname
+         -> detail.salutation      (fertige Briefanrede)
+         -> communications[] mit type 'email' und data_content
+     Rückfallweg, falls die GUID dort nicht geführt ist:
+     GET /clients?filter=number eq <Mandantennummer>
+   Der Abruf ist eine Hilfe, keine Voraussetzung: schlägt er fehl, bleiben
+   Empfänger und Anrede leer und von Hand füllbar — die Mail selbst
+   entsteht trotzdem.
+   ===================================================================== */
+$('mailBodyTpl').value=RNL.MAIL_TPL_DEFAULT;
+$('btnTplReset').onclick=function(){
+  $('mailBodyTpl').value=RNL.MAIL_TPL_DEFAULT;
+  $('mailSubjectTpl').value='Rückfrage: {anzahltext}';
+  buildMail();
+};
+
+function mdClient(){
+  return apiGetOn(baseUrlMd(),'/clients/'+encodeURIComponent(S.clientId))
+    .then(function(c){ return { client:c, via:'GUID '+S.clientId }; })
+    .catch(function(e1){
+      var n=parseInt(String(S.clientNumber).replace(/\D/g,''),10);
+      diag('Stammdaten: /clients/<GUID> fehlgeschlagen ('+(e1.status||'Netz')+
+           ') — zweiter Versuch über die Mandantennummer');
+      if(!isFinite(n)) throw e1;
+      return apiGetOn(baseUrlMd(),'/clients',{ filter:'number eq '+n })
+        .then(asArr).then(function(list){
+          if(!list.length) throw new Error('Kein Mandant mit der Nummer '+n+
+            ' in den zentralen Stammdaten gefunden.');
+          return { client:list[0], via:'Mandantennummer '+n };
+        });
+    });
+}
+
+$('btnLoadContact').onclick=function(){
+  if(!S.clientId){ setStatus('contactStatus','err','Erst Mandant wählen'); return; }
+  setStatus('contactStatus','load','Zentrale Stammdaten werden gelesen…');
+  S.contact=null; $('contactResult').innerHTML='';
+  var client=null, via='';
+  return mdClient().then(function(r){
+    client=r.client; via=r.via;
+    var aid=client.legal_person_id || client.natural_person_id;
+    if(!aid) throw new Error('Der Mandant verweist weder auf ein Unternehmen (legal_person_id) '+
+      'noch auf eine Person (natural_person_id) — ohne Adressaten gibt es in den Stammdaten '+
+      'keine E-Mail-Adresse und keine Briefanrede.');
+    return apiGetOn(baseUrlMd(),'/addressees/'+encodeURIComponent(aid),
+      { expand:'detail,communications,contact_persons' });
+  }).then(function(a){
+    S.contact={
+      name: RNL.nameOf(a,client.name),
+      salutation: RNL.salutationOf(a),
+      emails: RNL.emailsOf(a),
+      persons: (a.contact_persons||[]).filter(function(x){ return x.addressee_id; }),
+      type: String(a.type||''), via: via
+    };
+    setStatus('contactStatus','ok','Stammdaten gelesen');
+    renderContact();
+    if(S.contact.emails.length) $('mailTo').value=S.contact.emails[0].addr;
+    if(S.contact.salutation) $('mailSalutation').value=S.contact.salutation;
+    buildMail();
+  }).catch(function(e){
+    setStatus('contactStatus','err','Fehlgeschlagen');
+    $('contactResult').innerHTML=note('err',
+      '<b>Die zentralen Stammdaten konnten nicht gelesen werden.</b> Empfänger und Briefanrede '+
+      'bleiben leer und können von Hand eingetragen werden — an der Prüfung und am Mailtext '+
+      'ändert das nichts.<pre>'+esc(baseUrlMd())+'\n\n'+esc(humanErr(e))+'</pre>'+
+      (e.status===404
+        ? 'Ein <b>404</b> heißt hier meist: die Schnittstelle <code>master-data/v1</code> ist auf '+
+          'diesem Arbeitsplatz nicht installiert oder nicht lizenziert (sie gehört zu DATEV '+
+          'Eigenorganisation), oder der Mandant ist dort nicht unter dieser GUID bzw. Nummer geführt.'
+        : ''));
+  });
+};
+
+function renderContact(){
+  var c=S.contact; if(!c) return;
+  var html=note(c.emails.length?'ok':'warn',
+    '<b>'+esc(c.name||'(ohne Namen)')+'</b>'+
+    (c.type?' <span class="pill neutral">'+esc(c.type==='legal_person'?'Unternehmen':
+      (c.type==='natural_person'?'Person':c.type))+'</span>':'')+
+    ' · gefunden über '+esc(c.via)+
+    '<br>Briefanrede: '+(c.salutation
+      ? '<b>'+esc(c.salutation)+'</b>'
+      : '<span class="pill warn">nicht gepflegt</span> — <code>{anrede}</code> setzt dann '+
+        '„Sehr geehrte Damen und Herren,“ ein')+
+    '<br>E-Mail-Adressen: '+(c.emails.length
+      ? '<b>'+c.emails.length+'</b>'+(c.emails.length>1?' — bitte auswählen':'')
+      : '<span class="pill warn">keine im Adressaten hinterlegt</span>'));
+
+  if(c.emails.length>1){
+    html+='<div class="field" style="margin-top:14px"><label for="selMail">'+
+      'E-Mail-Adresse aus den Stammdaten</label><select id="selMail">'+
+      c.emails.map(function(e,i){
+        return '<option value="'+esc(e.addr)+'">'+esc(e.addr)+
+          (e.main?' · Standardadresse':'')+(e.note?' · '+esc(e.note):'')+
+          (i===0?'  (vorbelegt)':'')+'</option>';
+      }).join('')+'</select></div>';
+  }
+  if(c.persons.length){
+    html+='<div class="field" style="margin-top:14px"><label>Kontaktpersonen des Mandanten</label>'+
+      '<div class="btnrow" style="margin-top:0">'+
+      c.persons.map(function(pp,i){
+        return '<button class="btn ghost" data-cp="'+i+'">'+
+          esc(pp.display_name||('Kontaktperson '+(i+1)))+
+          (pp.function?' · '+esc(pp.function):'')+'</button>';
+      }).join('')+'</div>'+
+      '<div class="hint">Die E-Mail-Adresse einer Kontaktperson steht an deren eigenem Adressaten '+
+      'und wird erst auf Klick nachgeladen.</div></div><div id="cpResult"></div>';
+  }
+  $('contactResult').innerHTML=html;
+
+  var sel=$('selMail');
+  if(sel){
+    sel.selectedIndex=0;
+    var apply=function(){ $('mailTo').value=sel.value; buildMail(); };
+    sel.onchange=apply;
+    sel.onclick=apply;   /* ein bereits gewählter Eintrag feuert kein change-Event */
+  }
+  var btns=$('contactResult').querySelectorAll('button[data-cp]');
+  for(var i=0;i<btns.length;i++)
+    btns[i].onclick=(function(b){ return function(){ loadPerson(+b.getAttribute('data-cp')); }; })(btns[i]);
+}
+
+function loadPerson(i){
+  var c=S.contact, pp=c&&c.persons[i]; if(!pp) return;
+  $('cpResult').innerHTML='<div class="notice"><span class="spin"></span> '+
+    esc(pp.display_name||'Kontaktperson')+' wird gelesen…</div>';
+  return apiGetOn(baseUrlMd(),'/addressees/'+encodeURIComponent(pp.addressee_id),
+      { expand:'detail,communications' })
+    .then(function(a){
+      var mails=RNL.emailsOf(a), sal=RNL.salutationOf(a);
+      if(!mails.length){
+        $('cpResult').innerHTML=note('warn','<b>'+esc(RNL.nameOf(a,pp.display_name))+
+          '</b> hat in den Stammdaten keine E-Mail-Adresse.');
+        return;
+      }
+      $('mailTo').value=mails[0].addr;
+      if(sal) $('mailSalutation').value=sal;
+      buildMail();
+      $('cpResult').innerHTML=note('ok','<b>Empfänger auf '+esc(RNL.nameOf(a,pp.display_name))+
+        '</b> gesetzt: <code>'+esc(mails[0].addr)+'</code>'+
+        (mails.length>1?' (von '+mails.length+' Adressen die Standardadresse)':'')+
+        (sal?'<br>Briefanrede übernommen: <b>'+esc(sal)+'</b>'
+            :'<br>Für diese Person ist keine Briefanrede gepflegt — die bisherige bleibt stehen.'));
+    })
+    .catch(function(e){
+      $('cpResult').innerHTML=note('err','<b>Die Kontaktperson konnte nicht gelesen werden.</b>'+
+        '<pre>'+esc(humanErr(e))+'</pre>');
+    });
+}
+
+function mailCfg(){
+  return {
+    salutation: $('mailSalutation').value,
+    clientName: S.clientPlain||S.clientName,
+    fyLabel: S.fyLabel,
+    sender: $('cfgSender').value,
+    subjectTpl: $('mailSubjectTpl').value,
+    bodyTpl: $('mailBodyTpl').value,
+    skipJumps: $('cfgMailNoJump').checked,
+    withBad: $('cfgMailBad').checked,
+    maxBad: 50
+  };
+}
+
+function buildMail(){
+  if(!S.res || !S.res.groups.length){
+    S.mail=null;
+    $('mailWarn').innerHTML=''; $('mailPreview').innerHTML=
+      note('warn','<b>Noch kein prüfbares Ergebnis.</b> Die Mail entsteht aus den in Schritt 3 '+
+        'gemeldeten Lücken.');
+    $('btnMailOpen').disabled=true; $('btnMailCopy').disabled=true;
+    undone('s4');
+    return;
+  }
+  var cfg=mailCfg();
+  var m=RNL.buildMailText(S.res,cfg);
+  S.mail=m;
+
+  var warn='';
+  if(!/\{liste\}/.test(cfg.bodyTpl))
+    warn+=note('warn','<b>Die Vorlage enthält keinen Platzhalter <code>{liste}</code>.</b> '+
+      'Die fehlenden Nummern erscheinen dadurch nicht in der Mail.');
+  if(cfg.withBad && !/\{abweichende\}/.test(cfg.bodyTpl))
+    warn+=note('warn','<b>„Nummern außerhalb des Schemas mit anfragen“ ist an, die Vorlage enthält '+
+      'aber keinen Platzhalter <code>{abweichende}</code>.</b> Die Liste fehlt dann im Text.');
+  if(!m.gaps.total)
+    warn+=note('ok','<b>Es fehlt keine Rechnungsnummer.</b> Es gibt nichts anzufragen — '+
+      (m.gaps.skippedNumbers
+        ? fmtInt(m.gaps.skippedNumbers)+' Nummern liegen in Lücken mit Sprungverdacht und sind '+
+          'laut Einstellung ausgenommen.'
+        : 'die geprüften Folgen sind lückenlos.'));
+  if(m.gaps.skippedGaps)
+    warn+=note('','<b>'+plural(m.gaps.skippedGaps,'Lücke','Lücken')+' mit zusammen '+
+      plural(m.gaps.skippedNumbers,'Nummer','Nummern')+' bleiben laut Einstellung aus der Mail</b> '+
+      '(Sprungverdacht ab '+fmtInt(gapWarn())+' Nummern). In den Listen in Schritt 3 stehen sie '+
+      'weiterhin.');
+  if(cfg.withBad && m.bad.noNumber)
+    warn+=note('','<b>'+fmtInt(m.bad.noNumber)+' Buchung(en) ohne Belegfeld 1 sind nicht in der '+
+      'Mail.</b> Ohne Nummer kann der Mandant nicht danach suchen — diese Fälle klärt man am '+
+      'Buchungssatz, nicht beim Mandanten.');
+  if(cfg.withBad && m.bad.skipped)
+    warn+=note('warn','<b>'+fmtInt(m.bad.skipped)+' weitere abweichende Nummern stehen nicht in '+
+      'der Mail</b> — die Liste ist auf 50 Einträge begrenzt. Vollständig sind sie im CSV-Export '+
+      'aus Schritt 3.');
+  if(!$('mailTo').value.trim())
+    warn+=note('warn','<b>Es ist keine Empfängeradresse eingetragen.</b> Outlook öffnet dann eine '+
+      'Mail ohne Empfänger.');
+  if(!$('mailSalutation').value.trim())
+    warn+=note('','Ohne Briefanrede setzt <code>{anrede}</code> „Sehr geehrte Damen und Herren,“ ein.');
+  $('mailWarn').innerHTML=warn;
+
+  var href=RNL.mailtoHref($('mailTo').value,m.subject,m.body);
+  var html='<div class="kpis">'+
+    kpi('Angefragte Nummern',fmtInt(m.gaps.total),plural(m.gaps.items.length,'Lücke','Lücken'),'accent')+
+    kpi('Abweichende Nummern',cfg.withBad?fmtInt(m.bad.count):'—',
+        cfg.withBad?'in der Mail':'nicht angefragt')+
+    kpi('Länge der mailto-Adresse',fmtInt(href.length),'Zeichen')+
+  '</div>';
+  html+='<div class="field" style="margin-top:18px"><label>Betreff</label>'+
+    '<input type="text" id="mailSubjectOut" readonly value="'+esc(m.subject)+'"></div>'+
+    '<div class="field" style="margin-top:14px"><label>Nachricht</label>'+
+    '<textarea id="mailBodyOut" readonly>'+esc(m.body)+'</textarea></div>';
+  html+=note(href.length>1800?'warn':'','Die <code>mailto:</code>-Adresse ist <b>'+
+    fmtInt(href.length)+'</b> Zeichen lang.'+(href.length>1800
+      ? ' Outlook und andere Mailprogramme kürzen ab etwa 2.000 Zeichen <b>stillschweigend</b>. '+
+        'Bitte „Betreff und Text kopieren“ verwenden und die geöffnete Mail vor dem Versand auf '+
+        'Vollständigkeit prüfen — oder in den Einstellungen weniger Lücken anfragen.'
+      : ' Das liegt im unkritischen Bereich.'));
+  $('mailPreview').innerHTML=html;
+
+  var ready=!!m.gaps.total || (cfg.withBad && !!m.bad.count);
+  $('btnMailOpen').disabled=!ready; $('btnMailCopy').disabled=!ready;
+  if(ready) markDone('s4'); else undone('s4');
+}
+
+$('btnMailOpen').onclick=function(){
+  if(!S.mail) return;
+  var href=RNL.mailtoHref($('mailTo').value,S.mail.subject,S.mail.body);
+  setStatus('mailStatus','load','Mailprogramm wird geöffnet…');
+  try{
+    window.location.href=href;
+    setTimeout(function(){
+      setStatus('mailStatus',href.length>1800?'warn':'ok',
+        href.length>1800?'Geöffnet — Text auf Vollständigkeit prüfen!':'Geöffnet');
+    },700);
+  }catch(e){
+    setStatus('mailStatus','err','Fehlgeschlagen');
+    $('mailStatus').insertAdjacentHTML('afterend',
+      note('err','<b>Das Mailprogramm konnte nicht geöffnet werden.</b><pre>'+
+        esc(String(e.message||e))+'</pre>Bitte „Betreff und Text kopieren“ verwenden.'));
+  }
+};
+
+$('btnMailCopy').onclick=function(){
+  if(!S.mail) return;
+  var text='Betreff: '+S.mail.subject+'\n\n'+S.mail.body;
+  var fallback=function(){
+    var ta=document.createElement('textarea'); ta.value=text;
+    ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select();
+    var ok=document.execCommand('copy');
+    document.body.removeChild(ta);
+    if(!ok) throw new Error('document.execCommand("copy") gab false zurück');
+  };
+  var pr;
+  try{
+    pr=(navigator.clipboard && navigator.clipboard.writeText)
+      ? navigator.clipboard.writeText(text) : Promise.resolve(fallback());
+  }catch(e){ pr=Promise.reject(e); }
+  pr.then(function(){ setStatus('mailStatus','ok','Betreff und Text kopiert'); })
+    .catch(function(e){
+      setStatus('mailStatus','err','Kopieren fehlgeschlagen');
+      $('mailStatus').insertAdjacentHTML('afterend',
+        note('err','<b>Kopieren in die Zwischenablage fehlgeschlagen.</b><pre>'+
+          esc(String(e.message||e))+'</pre>Der Text steht vollständig im Feld „Nachricht“ und kann '+
+          'von dort markiert und kopiert werden.'));
+    });
+};
+
+/* =====================================================================
+   EXPORT
+   ===================================================================== */
+function exportsEnabled(on){
+  $('btnCsvMiss').disabled=!on; $('btnCsvBad').disabled=!on; $('btnPrint').disabled=!on;
+}
+function csvCell(v){
+  var s=String(v==null?'':v);
+  return /[";\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+}
+function csvDownload(name,rows){
+  var lines=[];
+  for(var i=0;i<rows.length;i++){
+    var cells=[];
+    for(var j=0;j<rows[i].length;j++) cells.push(csvCell(rows[i][j]));
+    lines.push(cells.join(';'));
+  }
+  var blob=new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=name;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(a.href); },4000);
+}
+function fileStem(){
+  return 'Rechnungsnummern_'+String(S.clientName||'Mandant').replace(/[^\wäöüÄÖÜß.-]+/g,'_')+
+         '_'+String(S.fyId||'').replace(/[^\w-]+/g,'');
+}
+$('btnCsvMiss').onclick=function(){
+  if(!S.res) return;
+  var rows=[['Praefix','Fehlende Nummer','Luecke von','Luecke bis','Nummern in der Luecke',
+             'Sprungverdacht','Vorherige Nummer','Vorheriges Datum','Naechste Nummer','Naechstes Datum']];
+  for(var i=0;i<S.res.groups.length;i++){
+    var g=S.res.groups[i];
+    for(var j=0;j<g.gaps.length;j++){
+      var gp=g.gaps[j];
+      for(var c=gp.fromCounter;c<=gp.toCounter;c++){
+        rows.push([g.prefix,g.prefix+RNL.pad(c,g.width),
+                   g.prefix+RNL.pad(gp.fromCounter,g.width),g.prefix+RNL.pad(gp.toCounter,g.width),
+                   gp.count,gp.jump?'ja':'nein',
+                   gp.prev?gp.prev.doc1:'',gp.prev?deDate(gp.prev.row.iso):'',
+                   gp.next?gp.next.doc1:'',gp.next?deDate(gp.next.row.iso):'']);
+      }
+    }
+  }
+  if(rows.length===1){ setStatus('expStatus','ok','Keine fehlenden Nummern — nichts zu exportieren'); return; }
+  csvDownload(fileStem()+'_fehlende.csv',rows);
+  setStatus('expStatus','ok',fmtInt(rows.length-1)+' Zeilen exportiert');
+};
+$('btnCsvBad').onclick=function(){
+  if(!S.res) return;
+  var rows=[['Belegfeld 1','Grund','Debitor','Bezeichnung','Belegdatum','Betrag','Soll/Haben-Rohwerte',
+             'Buchungstext','Buchungsstapel','id']];
+  for(var i=0;i<S.res.bad.length;i++){
+    var b=S.res.bad[i], r=b.row;
+    rows.push([b.doc1,b.reason,debDisplay(r.deb),S.debCaption[String(r.deb)]||'',deDate(r.iso),
+               fmt(r.amount),'debit='+r.debit+' credit='+r.credit,r.text,r.seq,r.id]);
+  }
+  if(rows.length===1){ setStatus('expStatus','ok','Keine Abweichungen — nichts zu exportieren'); return; }
+  csvDownload(fileStem()+'_nicht_im_schema.csv',rows);
+  setStatus('expStatus','ok',fmtInt(rows.length-1)+' Zeilen exportiert');
+};
+$('btnPrint').onclick=function(){ window.print(); };
+
+/* =====================================================================
+   Ereignisse / Synchronisation
+   ===================================================================== */
+function resetFrom2(){
+  S.raw=[]; S.rows=[]; S.other=[]; S.stat=null; S.res=null; S.excluded={};
+  S.collapsed=0; S.delivered=0; S.debPages=0; S.debTruncated=false;
+  setFetchCard(''); $('fetchStatus').innerHTML='';
+  $('prefixBox').innerHTML=''; $('result').innerHTML=''; $('expStatus').innerHTML='';
+  exportsEnabled(false);
+  S.mail=null;
+  $('mailWarn').innerHTML=''; $('mailPreview').innerHTML=''; $('mailStatus').innerHTML='';
+  $('btnMailOpen').disabled=true; $('btnMailCopy').disabled=true;
+  ['s2','s3','s4'].forEach(function(k){ var e=$(k); e.classList.remove('done'); e.textContent=k.slice(1); });
+  $('card3').classList.add('dim'); $('card4').classList.add('dim');
+}
+
+/* Die Schemafelder stehen in den Einstellungen und in Karte 3 — beide Seiten
+   bleiben synchron, damit nicht zwei verschiedene Werte sichtbar sind. */
+function syncPair(a,b,from){
+  var src=from===a?$(a):$(b), dst=from===a?$(b):$(a);
+  dst.value=src.value;
+}
+$('cfgStart').oninput=function(){ syncPair('cfgStart','cfgStart2','cfgStart'); onSchemaChange(); };
+$('cfgStart2').oninput=function(){ syncPair('cfgStart','cfgStart2','cfgStart2'); onSchemaChange(); };
+$('cfgWidth').onchange=function(){ $('cfgWidth2').value=$('cfgWidth').value; onSchemaChange(); };
+$('cfgWidth2').onchange=function(){ $('cfgWidth').value=$('cfgWidth2').value; onSchemaChange(); };
+$('cfgGapWarn').oninput=onSchemaChange;
+
+function onSchemaChange(){
+  var bad=!(startPos()>=1);
+  $('cfgStart').classList.toggle('bad',bad); $('cfgStart2').classList.toggle('bad',bad);
+  if(S.rows.length){ S.excluded={}; runAnalysis(); } else renderEchos();
+}
+
+/* Der Umschalter für die Gegenkonto-Seite verändert die Auswahl der Buchungen,
+   nicht nur die Auswertung — die Auswahl wird deshalb neu gebildet. */
+$('cfgContra').onchange=function(){
+  if(!S.raw.length) return;
+  var sel=RNL.selectDebitorSoll(S.raw,S.debSet,$('cfgContra').checked);
+  S.rows=sel.rows; S.other=sel.other; S.stat=sel.stat; S.excluded={};
+  setFetchCard(renderFetch());
+  setStatus('fetchStatus','ok',fmtInt(S.rows.length)+' Rechnungsbuchungen');
+  runAnalysis();
+};
+$('cfgDiag').onchange=syncDiag;
+
+['mailSubjectTpl','mailBodyTpl','mailTo','mailSalutation','cfgSender'].forEach(function(id){
+  $(id).oninput=function(){ if(S.res) buildMail(); };
+});
+['cfgMailNoJump','cfgMailBad'].forEach(function(id){
+  $(id).onchange=function(){ if(S.res) buildMail(); };
+});
+
+renderEchos();
+
+/* Rechenkern für den automatisierten Test freigeben (keine Wirkung im Browser). */
+window.__RNL={ RNL:RNL, S:S, runAnalysis:runAnalysis, applyFy:applyFy,
+               onClientChange:onClientChange, buildMail:buildMail, mailCfg:mailCfg };
+</script>
+</body>
+</html>

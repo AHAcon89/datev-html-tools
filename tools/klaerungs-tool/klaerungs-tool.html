@@ -1,0 +1,2658 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hausmann Klärungs-Tool · DATEVconnect</title>
+<meta name="description" content="Buchungssätze eines Klärungskontos über DATEVconnect abrufen, den offenen Posten der Kreditoren gegenüberstellen, markierte Buchungen per Generalumkehr stornieren und richtig nachbuchen, für den Rest eine Beleganforderung per E-Mail erzeugen. Single-File, läuft lokal aus dem Dateisystem.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23B40F1B'/%3E%3Cpath d='M4 24l7-11 4 6 3-4 10 9z' fill='%23fff'/%3E%3C/svg%3E">
+<style>
+:root{
+  --aha-red:#B40F1B; --aha-coral:#FF5559; --aha-ink:#2D2D2D;
+  --aha-paper:#FBFAF8; --aha-white:#FFFFFF;
+  --muted:rgba(45,45,45,.60); --border:rgba(45,45,45,.12); --border-str:rgba(45,45,45,.22);
+  --gradient:linear-gradient(135deg,#B40F1B 0%,#FF5559 100%);
+  --font:'Figtree',system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,'Courier New',monospace;
+  --r-card:24px; --r-btn:12px; --r-chip:8px;
+  --shadow:0 8px 30px rgba(45,45,45,.08);
+  --ok:#166534; --ok-bg:#EDF7F0; --ok-bd:#BFE0CB;
+  --warn:#8A5300; --warn-bg:#FDF5E7; --warn-bd:#EDD9AC;
+  --err:#B40F1B; --err-bg:#FBECEC; --err-bd:#F0C6C6;
+  --info-bg:#F3F4F6;
+  --row-green:#EDF7F0; --row-green-bd:#BFE0CB;
+  --row-yellow:#FDF5E7; --row-yellow-bd:#EDD9AC;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:var(--font);font-weight:500;color:var(--aha-ink);background:var(--aha-paper);
+     line-height:1.55;-webkit-font-smoothing:antialiased;font-size:15px}
+h1,h2,h3,h4{font-weight:800;line-height:1.1;letter-spacing:-.01em;margin:0}
+.wrap{max-width:1420px;margin:0 auto;padding:0 24px 80px}
+
+/* ---------- Kopf ---------- */
+header.hero{background:var(--gradient);color:#fff;padding:34px 0 30px;margin-bottom:32px}
+header.hero .wrap{padding-bottom:0}
+.brand{display:flex;align-items:center;gap:12px;font-weight:800;font-size:.82rem;
+       letter-spacing:.12em;text-transform:uppercase;opacity:.92}
+.brand .mark{width:26px;height:26px;border-radius:7px;background:rgba(255,255,255,.18);
+       display:grid;place-items:center;flex:0 0 auto}
+.brand .mark svg{width:16px;height:16px;display:block}
+header.hero h1{font-size:clamp(1.7rem,3.4vw,2.5rem);margin:14px 0 8px}
+header.hero p{margin:0;max-width:82ch;opacity:.95;font-size:.98rem}
+.hero-note{margin-top:14px;display:inline-block;background:rgba(45,45,45,.22);
+       border-radius:var(--r-chip);padding:7px 12px;font-size:.8rem}
+
+/* Werbeblock: aus welchem Format dieses Tool entstanden ist. Im Druck ausgeblendet. */
+.promo{margin-top:20px;display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;
+       background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.38);
+       border-radius:var(--r-btn);padding:14px 18px}
+.promo .tag{font-weight:800;text-transform:uppercase;letter-spacing:.1em;font-size:.7rem;
+       background:rgba(255,255,255,.24);border-radius:var(--r-chip);padding:5px 10px;flex:0 0 auto}
+.promo p{margin:0;flex:1 1 340px;font-size:.88rem;opacity:.96;line-height:1.5}
+.promo a.cta{color:#fff;font-weight:800;font-size:.88rem;background:rgba(45,45,45,.30);
+       border:1px solid rgba(255,255,255,.5);border-radius:var(--r-btn);padding:10px 18px;
+       text-decoration:none;white-space:nowrap;flex:0 0 auto;transition:background .18s ease}
+.promo a.cta:hover{background:#fff;color:var(--aha-red);border-color:#fff}
+
+/* ---------- Karten ---------- */
+.card{background:var(--aha-white);border-radius:var(--r-card);box-shadow:var(--shadow);
+      padding:26px 28px;margin-bottom:24px;border:1px solid var(--border)}
+.card.dim{opacity:.45;pointer-events:none;filter:saturate(.4)}
+.card > h2{font-size:1.18rem;display:flex;align-items:center;gap:12px;margin-bottom:6px}
+.step{width:28px;height:28px;border-radius:50%;background:var(--aha-red);color:#fff;
+      font-size:.85rem;font-weight:800;display:grid;place-items:center;flex:0 0 auto}
+.step.done{background:var(--ok)}
+.sub{color:var(--muted);font-size:.88rem;margin:0 0 18px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--aha-red);display:inline-block;
+     margin-right:8px;vertical-align:.12em;flex:0 0 auto}
+
+/* ---------- Formulare ---------- */
+label{display:block;font-size:.78rem;font-weight:800;letter-spacing:.02em;
+      color:var(--muted);text-transform:uppercase;margin-bottom:5px}
+input[type=text],input[type=number],input[type=email],select,textarea{
+  font-family:var(--font);font-weight:500;font-size:.94rem;color:var(--aha-ink);
+  background:#fff;border:1px solid var(--border-str);border-radius:var(--r-btn);
+  padding:9px 12px;width:100%}
+textarea{resize:vertical;line-height:1.5}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--aha-red);outline-offset:1px;border-color:transparent}
+select:disabled{background:var(--info-bg);color:var(--muted);cursor:progress}
+@keyframes fyflash{0%{box-shadow:0 0 0 0 rgba(180,15,27,.45)}100%{box-shadow:0 0 0 9px rgba(180,15,27,0)}}
+.notice.flash{animation:fyflash .55s ease-out}
+.grid{display:grid;gap:16px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+.field .hint{font-size:.76rem;color:var(--muted);margin-top:4px;line-height:1.4}
+.field .hint code{font-family:var(--mono);font-size:.9em;background:var(--info-bg);
+      border:1px solid var(--border);border-radius:4px;padding:1px 4px}
+.switch{display:flex;align-items:flex-start;gap:11px;background:var(--aha-paper);
+      border:1px solid var(--border);border-radius:var(--r-btn);padding:12px 14px}
+.switch input{width:18px;height:18px;margin:2px 0 0;flex:0 0 auto;accent-color:var(--aha-red)}
+.switch .t{font-weight:800;font-size:.92rem}
+.switch .d{font-size:.79rem;color:var(--muted);line-height:1.45}
+
+/* ---------- Buttons ---------- */
+.btn{font-family:var(--font);font-weight:800;font-size:.92rem;border-radius:var(--r-btn);
+     padding:11px 20px;border:none;cursor:pointer;background:var(--aha-red);color:#fff;
+     display:inline-flex;align-items:center;gap:9px;transition:background .18s ease}
+.btn:hover:not(:disabled){background:var(--aha-coral)}
+.btn:disabled{opacity:.42;cursor:not-allowed}
+.btn.sec{background:transparent;color:var(--aha-red);border:1.5px solid var(--aha-red);padding:9.5px 18px}
+.btn.sec:hover:not(:disabled){background:var(--aha-red);color:#fff}
+.btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--border-str);
+     font-weight:500;padding:9px 14px}
+.btn.ghost:hover:not(:disabled){background:var(--info-bg);color:var(--aha-ink)}
+.btnrow{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:18px}
+
+/* ---------- Meldungen ---------- */
+.notice{border-radius:var(--r-btn);padding:13px 16px;font-size:.89rem;margin:14px 0 0;
+        border:1px solid var(--border);background:var(--info-bg)}
+.notice.ok{background:var(--ok-bg);border-color:var(--ok-bd);color:var(--ok)}
+.notice.warn{background:var(--warn-bg);border-color:var(--warn-bd);color:var(--warn)}
+.notice.err{background:var(--err-bg);border-color:var(--err-bd);color:var(--err)}
+.notice b{font-weight:800}
+.notice code{font-family:var(--mono);font-size:.88em}
+.notice pre{margin:9px 0 0;font-family:var(--mono);font-size:.78rem;white-space:pre-wrap;
+        word-break:break-word;background:rgba(255,255,255,.6);border-radius:6px;padding:8px 10px}
+.pill{display:inline-block;border-radius:99px;padding:2px 10px;font-size:.74rem;font-weight:800;
+      letter-spacing:.02em}
+.pill.ok{background:var(--ok-bg);color:var(--ok)} .pill.warn{background:var(--warn-bg);color:var(--warn)}
+.pill.err{background:var(--err-bg);color:var(--err)} .pill.neutral{background:var(--info-bg);color:var(--muted)}
+.spin{width:13px;height:13px;border:2px solid rgba(180,15,27,.25);border-top-color:var(--aha-red);
+      border-radius:50%;display:inline-block;animation:sp .7s linear infinite;vertical-align:-2px}
+.btn .spin{border-color:rgba(255,255,255,.35);border-top-color:#fff}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* ---------- Kennzahlen ---------- */
+.kpis{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin:18px 0 4px}
+.kpi{background:var(--aha-paper);border:1px solid var(--border);border-radius:var(--r-btn);padding:14px 16px}
+.kpi .l{font-size:.74rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.kpi .v{font-size:1.42rem;font-weight:800;margin-top:3px;letter-spacing:-.02em}
+.kpi.accent .v{color:var(--aha-red)}
+
+/* ---------- Tabellen ---------- */
+.tablewrap{overflow-x:auto;margin-top:16px;border:1px solid var(--border);border-radius:var(--r-btn)}
+table{border-collapse:collapse;width:100%;font-size:.86rem}
+th,td{padding:7px 9px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+th{background:var(--aha-paper);font-weight:800;font-size:.74rem;text-transform:uppercase;
+   letter-spacing:.04em;color:var(--muted)}
+thead tr.grouphead th{background:#fff;border-bottom:1px solid var(--border-str);
+   font-size:.78rem;letter-spacing:.06em;color:var(--aha-ink);text-align:center}
+thead tr.grouphead th.left{border-right:2px solid var(--border-str)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+td.sep,th.sep{border-right:2px solid var(--border-str)}
+tbody tr:last-child td{border-bottom:none}
+tbody tr.m-green{background:var(--row-green)}
+tbody tr.m-yellow{background:var(--row-yellow)}
+tbody tr.m-blocked{background:var(--err-bg)}
+tbody tr.sum td{border-top:2px solid var(--border-str);font-weight:800;background:var(--aha-paper)}
+td .txt{max-width:220px;overflow:hidden;text-overflow:ellipsis;display:inline-block;
+        vertical-align:bottom;white-space:nowrap}
+td.chk{text-align:center}
+td.chk input{width:17px;height:17px;accent-color:var(--aha-red);cursor:pointer}
+td.chk input:disabled{cursor:not-allowed}
+td.opsel select{font-size:.8rem;padding:4px 7px;min-width:210px;max-width:320px}
+.mono{font-family:var(--mono);font-size:.92em}
+.dash{color:var(--muted)}
+.legend{display:flex;flex-wrap:wrap;gap:16px;margin-top:12px;font-size:.79rem;color:var(--muted);
+        align-items:center}
+.legend .sw{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;
+        margin-right:6px;border:1px solid var(--border-str)}
+.legend .sw.g{background:var(--row-green);border-color:var(--row-green-bd)}
+.legend .sw.y{background:var(--row-yellow);border-color:var(--row-yellow-bd)}
+.legend .sw.n{background:#fff}
+.legend .sw.b{background:var(--err-bg);border-color:var(--err-bd)}
+
+details.clearedbox{margin-top:11px;border-top:1px solid rgba(45,45,45,.18);padding-top:9px}
+details.clearedbox > summary{cursor:pointer;font-weight:800;font-size:.82rem;list-style:none;
+     display:flex;align-items:center;gap:8px}
+details.clearedbox > summary::-webkit-details-marker{display:none}
+details.clearedbox > summary::after{content:'▾';color:var(--muted)}
+details.clearedbox[open] > summary::after{content:'▴'}
+details.clearedbox .tablewrap{background:#fff}
+pre.json{font-family:var(--mono);font-size:.76rem;background:#F7F5F3;border:1px solid var(--border);
+     border-radius:var(--r-btn);padding:14px;max-height:340px;overflow:auto;white-space:pre-wrap;
+     word-break:break-word;margin:14px 0 0}
+details.settings{background:var(--aha-white);border:1px solid var(--border);border-radius:var(--r-card);
+     box-shadow:var(--shadow);padding:6px 28px;margin-bottom:24px}
+details.settings > summary{cursor:pointer;font-weight:800;padding:18px 0;font-size:1.02rem;
+     list-style:none;display:flex;align-items:center;gap:10px}
+details.settings > summary::-webkit-details-marker{display:none}
+details.settings > summary::after{content:'▾';margin-left:auto;color:var(--muted);font-size:.9rem}
+details.settings[open] > summary::after{content:'▴'}
+details.settings > .body{padding-bottom:24px}
+.sectitle{font-size:.76rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;
+     color:var(--aha-red);margin:22px 0 10px;padding-top:18px;border-top:1px solid var(--border)}
+.sectitle:first-child{margin-top:6px;padding-top:0;border-top:none}
+#diag{margin-top:16px;background:#252525;color:#D9D4CE;border-radius:var(--r-btn);padding:13px 15px;
+     font-family:var(--mono);font-size:.76rem;max-height:260px;overflow:auto;white-space:pre-wrap;
+     word-break:break-all;display:none}
+footer{color:var(--muted);font-size:.78rem;text-align:center;padding:8px 0 0;line-height:1.6}
+@media print{header.hero{background:#fff;color:var(--aha-ink)} .promo,.btnrow,#diag,details.settings{display:none}}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="brand">
+      <span class="mark"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 24l7-11 4 6 3-4 10 9z" fill="#fff"/></svg></span>
+      AHA Consulting · DATEVconnect
+    </div>
+    <h1>Hausmann Klärungs-Tool</h1>
+    <p>Die Buchungssätze des Klärungskontos werden den offenen Posten der Kreditoren gegenübergestellt.
+       Markierte Buchungen storniert das Tool per Generalumkehr und bucht sie neu — entweder auf den
+       zugeordneten Kreditor oder auf das Ausbuchungskonto. Für die nicht markierten Positionen
+       entsteht eine Beleganforderung per E-Mail.</p>
+    <div class="hero-note">Die Anmeldung läuft über Ihre Windows-Sitzung — es sind keine Zugangsdaten nötig.
+       Die Datei arbeitet lokal im Browser, ohne Server und ohne externe Ressourcen.</div>
+    <div class="promo">
+      <span class="tag">Zeitfresser</span>
+      <p><b>Dieses Tool ist aus einem Zeitfresser entstanden.</b> Eine Kanzlei hat gemeldet, wie viel
+         Zeit das Klären nachgereichter Belege auf dem Klärungskonto kostet — daraus wurde dieses
+         Werkzeug. Sagen Sie mir, was in Ihrer Buchhaltung am meisten Zeit frisst: zu jedem
+         gemeldeten Zeitfresser entsteht ein Video-Tutorial oder ein Tool wie dieses.</p>
+      <a class="cta" href="https://tally.so/r/GxE0Wp" target="_blank" rel="noopener">Zeitfresser melden</a>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+<!-- ================= EINSTELLUNGEN ================= -->
+<details class="settings" id="settings">
+  <summary><span class="dot"></span>Einstellungen</summary>
+  <div class="body">
+
+    <div class="sectitle">Konten</div>
+    <div class="grid g3">
+      <div class="field">
+        <label for="cfgKtoKlaerung">Klärungskonto</label>
+        <input type="text" id="cfgKtoKlaerung" value="1370" inputmode="numeric">
+        <div class="hint">Technisch: <b><span id="techKlaerung">13700000</span></b></div>
+      </div>
+      <div class="field">
+        <label for="cfgKtoAusbuchung">Ausbuchungskonto</label>
+        <input type="text" id="cfgKtoAusbuchung" value="6850" inputmode="numeric">
+        <div class="hint">Technisch: <b><span id="techAusbuchung">68500000</span></b></div>
+      </div>
+      <div class="field">
+        <label>Sachkontenlänge</label>
+        <div style="padding:9px 0"><b id="echoLen" style="font-size:1.1rem">4</b>
+          <span style="color:var(--muted);font-size:.79rem"> aus dem Wirtschaftsjahr</span></div>
+      </div>
+    </div>
+    <div class="hint" style="margin-top:10px;font-size:.79rem">
+      Kontonummern werden so eingegeben, wie sie im Kontenrahmen des Mandanten stehen.
+      DATEVconnect verlangt beim Schreiben die technische Maximallänge — Sachkonten 8-stellig,
+      Personenkonten 9-stellig, rechts mit Nullen aufgefüllt. Die Umrechnung nutzt die
+      Sachkontenlänge des gewählten Wirtschaftsjahres und wird zur Kontrolle mit angezeigt.
+    </div>
+
+    <div class="sectitle">Zuordnung</div>
+    <div class="grid g3">
+      <div class="field">
+        <label for="cfgBasis">Betragsvergleich gegen</label>
+        <select id="cfgBasis">
+          <option value="balance" selected>offenen Saldo (open_balance_of_item)</option>
+          <option value="amount">Ursprungsbetrag (amount_debit/credit)</option>
+        </select>
+        <div class="hint">Vorgabe: offener Saldo — trifft auch bei Teilzahlungen zu.</div>
+      </div>
+      <div class="field">
+        <label for="cfgTol">Betragstoleranz (€)</label>
+        <input type="text" id="cfgTol" value="0,00" inputmode="decimal">
+        <div class="hint">0,00 = centgenau. Gilt für grün und gelb gleichermaßen.</div>
+      </div>
+      <div class="field">
+        <label>Belegnummern-Vergleich</label>
+        <div class="switch">
+          <input type="checkbox" id="cfgDocTol">
+          <div><div class="t">tolerant vergleichen</div>
+            <div class="d">Aus (Vorgabe) = identisch nach Groß-/Kleinschreibung. Ein =
+              Trenn- und Sonderzeichen sowie führende Nullen werden vor dem Vergleich entfernt.</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="grid g2" style="margin-top:16px">
+      <div class="field">
+        <label>Bereits ausgeglichene Buchungen</label>
+        <div class="switch">
+          <input type="checkbox" id="cfgHideCleared" checked>
+          <div><div class="t">über Belegfeld 1 saldieren und ausblenden</div>
+            <div class="d">Ein (Vorgabe) = Buchungen mit <b>gleichem Belegfeld 1</b>, deren Summe
+              aus Soll minus Haben <b>0,00 €</b> ergibt, gelten als geklärt und verschwinden aus der
+              Tabelle. Sie nehmen dann an nichts mehr teil: keine Zuordnung, keine Buchungssätze,
+              keine Beleganforderung. Buchungen <b>ohne</b> Belegfeld 1 werden nie ausgeblendet.</div></div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Offener Saldo nicht geliefert</label>
+        <div class="switch">
+          <input type="checkbox" id="cfgBalFallback">
+          <div><div class="t">ersatzweise den Ursprungsbetrag verwenden</div>
+            <div class="d">Aus (Vorgabe) = Posten ohne <code>open_balance_of_item</code> werden
+              <b>nicht</b> zugeordnet und gesondert ausgewiesen. Ein = für diese Posten wird der
+              Ursprungsbetrag verglichen; die Tabelle kennzeichnet das je Posten.</div></div>
+        </div>
+      </div>
+      <div class="field">
+        <label for="cfgOpTop">Seitengröße OPOS-Abruf</label>
+        <input type="text" id="cfgOpTop" value="1000" inputmode="numeric">
+        <div class="hint">Parameter <code>top</code>; geblättert wird über <code>skip</code>
+          um die tatsächlich gelieferte Anzahl.</div>
+      </div>
+    </div>
+
+    <div class="sectitle">Buchungsstapel</div>
+    <div class="grid g3">
+      <div class="field">
+        <label for="cfgSeqName">Bezeichnung des Stapels</label>
+        <input type="text" id="cfgSeqName" value="Korr. nachger. Belege {MM}/{YY}" maxlength="80">
+        <div class="hint">Platzhalter: <code>{MM}</code> Monat · <code>{YY}</code> Jahr zweistellig ·
+          <code>{YYYY}</code> Jahr vierstellig (auch <code>{JJ}</code>/<code>{JJJJ}</code>), gefüllt
+          aus dem Buchungsmonat des Stapels.<br>Ergibt: <b id="seqNameEcho">—</b>
+          <span id="seqNameLen"></span></div>
+      </div>
+      <div class="field">
+        <label for="cfgSplit">Stapelaufteilung</label>
+        <select id="cfgSplit">
+          <option value="one" selected>ein Stapel für alle Buchungen</option>
+          <option value="month">je Buchungsmonat ein eigener Stapel</option>
+        </select>
+        <div class="hint">Die Spezifikation verlangt, dass <code>date_from</code> und
+          <code>date_to</code> in <b>einem</b> Buchungszeitraum liegen.</div>
+      </div>
+      <div class="field">
+        <label for="cfgPrefixGu">Buchungstext-Präfix Storno</label>
+        <input type="text" id="cfgPrefixGu" value="" placeholder="leer = Text wie im Original">
+        <div class="hint">Leer lassen, wenn der Buchungstext des Originals unverändert
+          übernommen werden soll.</div>
+      </div>
+    </div>
+    <div class="grid g2" style="margin-top:16px">
+      <div class="field">
+        <label for="cfgPrefixNeu">Buchungstext-Präfix Neubuchung</label>
+        <input type="text" id="cfgPrefixNeu" value="" placeholder="z. B. Umbuchung Klärung:">
+        <div class="hint">Wird dem Original-Buchungstext vorangestellt, Feld auf 60 Zeichen begrenzt.</div>
+      </div>
+      <div class="field">
+        <label>Festschreiben</label>
+        <div class="switch">
+          <input type="checkbox" id="cfgCommit">
+          <div><div class="t">Stapel festschreiben (<code>is_committed</code>)</div>
+            <div class="d">Aus (Vorgabe) = der Stapel bleibt in DATEV prüfbar und änderbar.</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sectitle">Beleganforderung</div>
+    <div class="grid g3">
+      <div class="field">
+        <label for="cfgVst">Vorsteuersatz (%)</label>
+        <input type="text" id="cfgVst" value="19" inputmode="decimal">
+        <div class="hint">Vorsteuer = Brutto × 19/119.</div>
+      </div>
+      <div class="field">
+        <label for="cfgErtrag">Ertragssteuersatz (%)</label>
+        <input type="text" id="cfgErtrag" value="30" inputmode="decimal">
+        <div class="hint">Wirkt auf den Nettobetrag (Brutto ÷ 1,19).</div>
+      </div>
+      <div class="field">
+        <label>Ergibt in Summe</label>
+        <div style="padding:9px 0"><b id="cfgQuote" style="font-size:1.1rem;color:var(--aha-red)">41,18 %</b>
+          <span style="color:var(--muted);font-size:.79rem"> des Bruttobetrags</span></div>
+      </div>
+    </div>
+    <div class="grid g2" style="margin-top:16px">
+      <div class="field">
+        <label>Habenbuchungen</label>
+        <div class="switch">
+          <input type="checkbox" id="cfgMailSollOnly" checked>
+          <div><div class="t">nur Sollbuchungen in die E-Mail</div>
+            <div class="d">Ein (Vorgabe) = Habenbuchungen auf dem Klärungskonto sind keine Zahlungen
+              mit nachforderbarem Beleg und bleiben aus der Mail. Sie stehen weiter in der Tabelle.</div></div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Zugeordnete Positionen</label>
+        <div class="switch">
+          <input type="checkbox" id="cfgMailNoAssigned">
+          <div><div class="t">Positionen mit zugeordnetem offenen Posten ausnehmen</div>
+            <div class="d">Aus (Vorgabe) = die E-Mail enthält <b>alle</b> nicht markierten Positionen.
+              Ein = Positionen mit erkanntem offenen Posten bleiben draußen.</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sectitle">Verbindung</div>
+    <div class="grid g2">
+      <div class="field">
+        <label>Adresse DATEVconnect Accounting</label>
+        <div class="hint"><code id="baseEcho"></code><br>Fest im Quelltext eingetragen (Block <b>KONFIGURATION</b> am Anfang des Skripts).
+          Jeder Aufruf läuft mit <code>mode:'cors'</code> und <code>credentials:'include'</code>.</div>
+      </div>
+      <div class="field">
+        <label>Adresse zentrale Stammdaten</label>
+        <div class="hint"><code id="baseEchoMd"></code><br>Eigene DATEVconnect-Schnittstelle (Client Master Data 1.7.1) —
+          nur für Name, Briefanrede und E-Mail-Adresse des Mandanten. Eigene Lizenz.</div>
+      </div>
+    </div>
+    <div class="grid g2" style="margin-top:16px">
+      <div class="field">
+        <label>Diagnose</label>
+        <div class="switch">
+          <input type="checkbox" id="cfgDiag">
+          <div><div class="t">Expertenansicht</div>
+            <div class="d">Zeigt jeden Request mit URL und Statuscode unten im Protokoll — und
+              blendet über der Gegenüberstellung die <b>Trefferdiagnose</b> ein: warum ein
+              offener Posten nicht zugeordnet wurde, mit Zahlen, durchgerechneten Alternativen
+              und den Rohwerten der gelieferten Posten.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</details>
+
+<!-- ================= 1 · MANDANT ================= -->
+<section class="card" id="card1">
+  <h2><span class="step" id="s1">1</span>Mandant und Wirtschaftsjahr</h2>
+  <p class="sub">Die Mandanten werden über <code class="mono">GET /clients</code> aus DATEVconnect gelesen.
+     Das Wirtschaftsjahr ist Teil der Adresse aller folgenden Endpunkte und daher zwingend.</p>
+  <div class="btnrow" style="margin-top:0">
+    <button class="btn" id="btnConnect">Mandanten laden</button>
+    <span id="connStatus"></span>
+  </div>
+  <div id="selects" class="grid g2" style="display:none;margin-top:18px">
+    <div class="field">
+      <label for="selClient">Mandant</label>
+      <select id="selClient"></select>
+    </div>
+    <div class="field">
+      <label for="selFy">Wirtschaftsjahr</label>
+      <select id="selFy"></select>
+    </div>
+  </div>
+  <div id="fyInfo" class="notice" style="display:none"></div>
+</section>
+
+<!-- ================= 2 · ABRUF UND GEGENÜBERSTELLUNG ================= -->
+<section class="card dim" id="card2">
+  <h2><span class="step" id="s2">2</span>Klärungskonto und offene Posten gegenüberstellen</h2>
+  <p class="sub">Abgerufen werden die Einzelbuchungen des Klärungskontos
+     (<code class="mono">GET /account-postings</code>) und die offenen Posten der Kreditoren
+     (<code class="mono">GET /accounts-payable?filter=is_cleared eq false</code>).
+     Links steht der Buchungssatz des Klärungskontos, rechts der zugeordnete offene Posten.</p>
+  <div class="btnrow" style="margin-top:0">
+    <button class="btn" id="btnFetch">Daten abrufen</button>
+    <button class="btn ghost" id="btnCheckAll">Alle grünen markieren</button>
+    <button class="btn ghost" id="btnCheckNone">Markierungen aufheben</button>
+    <span id="fetchStatus"></span>
+  </div>
+  <div id="fetchResult"></div>
+</section>
+
+<!-- ================= 3 · KORRIGIEREN ================= -->
+<section class="card dim" id="card3">
+  <h2><span class="step" id="s3">3</span>Korrigieren</h2>
+  <p class="sub">Jede markierte Buchung wird per <b>Generalumkehr</b> storniert
+     (<code class="mono">general_reversal: true</code> mit <b>umgedrehtem</b> Soll-/Haben-Kennzeichen)
+     und anschließend neu gebucht:
+     mit zugeordnetem offenen Posten auf den <b>Kreditor</b> und mit dessen Belegfeld&nbsp;1,
+     ohne Zuordnung auf das <b>Ausbuchungskonto</b>.</p>
+  <div id="bookResult"></div>
+  <div class="btnrow">
+    <button class="btn" id="btnPost" disabled>Korrigieren</button>
+    <button class="btn sec" id="btnShowJson" disabled>JSON anzeigen</button>
+    <button class="btn ghost" id="btnSaveJson" disabled>JSON speichern</button>
+  </div>
+  <pre class="json" id="postJson" style="display:none"></pre>
+  <div id="postStatus"></div>
+</section>
+
+<!-- ================= 4 · BELEGANFORDERUNG ================= -->
+<section class="card dim" id="card4">
+  <h2><span class="step" id="s4">4</span>Beleganforderung per E-Mail</h2>
+  <p class="sub">Grundlage sind die <b>nicht markierten</b> Positionen des Klärungskontos — die also
+     auf dem Konto stehen bleiben, weil der Beleg fehlt. Je Position werden Bruttobetrag, Datum,
+     Buchungstext und das Steuereinsparpotenzial ausgewiesen.</p>
+
+  <div class="btnrow" style="margin-top:0;margin-bottom:18px">
+    <button class="btn sec" id="btnLoadContact">Empfänger aus zentralen Stammdaten laden</button>
+    <span id="contactStatus"></span>
+  </div>
+  <div id="contactResult"></div>
+
+  <div class="grid g2">
+    <div class="field">
+      <label for="mailTo">Empfänger</label>
+      <input type="email" id="mailTo" placeholder="mandant@beispiel.de">
+      <div class="hint">Die Accounting-Schnittstelle liefert über <code>/clients</code> keine
+        E-Mail-Adresse. Der Knopf oben holt sie aus den zentralen Stammdaten
+        (<code>master-data/v1</code>); sonst von Hand füllen.</div>
+    </div>
+    <div class="field">
+      <label for="mailSubjectTpl">Betreff-Vorlage</label>
+      <input type="text" id="mailSubjectTpl" value="{summe} € Steuereinsparpotenzial!">
+      <div class="hint">Platzhalter: <code>{summe}</code> <code>{anzahl}</code> <code>{mandant}</code></div>
+    </div>
+  </div>
+
+  <div class="field" style="margin-top:16px">
+    <label for="mailBodyTpl">Text-Vorlage</label>
+    <textarea id="mailBodyTpl" rows="18"></textarea>
+    <div class="hint">Platzhalter: <code>{anrede}</code> (Briefanrede aus den Stammdaten)
+      <code>{liste}</code> (Positionsliste) <code>{summe}</code> <code>{anzahl}</code>
+      <code>{maxproz}</code> (rechnerischer Höchstsatz) <code>{fussnote}</code> (Erläuterung der
+      Quote) <code>{empfaenger}</code> <code>{mandant}</code>
+      <code>{konto}</code></div>
+  </div>
+  <div id="mailWarn"></div>
+
+  <div class="btnrow">
+    <button class="btn ghost" id="btnMailBuild">Vorschau aktualisieren</button>
+  </div>
+
+  <div id="mailPreview"></div>
+
+  <div class="btnrow">
+    <button class="btn" id="btnMailOpen" disabled>Im Mailprogramm öffnen</button>
+    <button class="btn sec" id="btnMailCopy" disabled>Text kopieren</button>
+    <span id="mailStatus"></span>
+  </div>
+</section>
+
+<div id="diag"></div>
+
+<footer>
+  AHA Consulting GmbH · Hausmann Klärungs-Tool v1.4.2 · DATEVconnect Accounting v1.7.4.4<br>
+  Keine externen Ressourcen, keine Datenübertragung außer an die konfigurierte DATEVconnect-Instanz.
+</footer>
+</div>
+
+<script>
+'use strict';
+/* ===================== KONFIGURATION – nur hier ändern =====================
+   Adresse von DATEVconnect. Fest eingetragen, damit sie nicht versehentlich
+   (oder auf fremde Veranlassung) in der Oberfläche umgestellt werden kann.
+   HTTPS-Variante:  'https://localhost:58452/datev/api'
+   Wer DATEVconnect anders erreicht (z. B. über einen Server), ändert NUR diese Zeile.
+   ============================================================================ */
+var DATEVCONNECT_BASE = 'http://localhost:58454/datev/api';
+
+/* =====================================================================
+   Hausmann Klärungs-Tool — Kernlogik (ohne DOM)
+   Alle Funktionen sind rein: sie bekommen Daten und Konfiguration und
+   geben Daten zurück. Das macht sie von außen prüfbar (window.KT).
+   ===================================================================== */
+var KT = (function(){
+
+/* ---------------- Formatierung / Parsing ---------------- */
+function fmt(n){ return (Math.round((Number(n)||0)*100)/100)
+  .toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtQ(n){ return (Number(n)||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+/* Prozentsatz für Mandantentexte: 19 statt 19,00, aber 7,5 bleibt 7,5. */
+function pct(n){ var v=Number(n)||0;
+  return (Math.abs(v-Math.round(v))<0.005) ? String(Math.round(v))
+    : v.toLocaleString('de-DE',{minimumFractionDigits:1,maximumFractionDigits:2}); }
+function esc(s){ return String(s==null?'':s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+  .replace(/'/g,'&#39;'); }
+function num(v){ var n=Number(v); return isFinite(n)?n:0; }
+/* Deutsche oder englische Dezimaleingabe; Tausenderpunkte werden entfernt. */
+function parseDe(s){
+  if(s==null) return NaN;
+  var t=String(s).replace(/\s|€/g,'');
+  if(t==='') return NaN;
+  if(t.indexOf(',')>-1) t=t.replace(/\./g,'').replace(',','.');
+  var n=Number(t); return isFinite(n)?n:NaN;
+}
+function r2(n){ return Math.round((Number(n)||0)*100)/100; }
+function isoDate(dt){ return dt?String(dt).slice(0,10):''; }
+function deDate(iso){ var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||''); return m?m[3]+'.'+m[2]+'.'+m[1]:(iso||''); }
+function monthKey(iso){ return /^\d{4}-\d{2}/.test(iso||'') ? String(iso).slice(0,7) : ''; }
+function monthLabel(key){ var m=/^(\d{4})-(\d{2})$/.exec(key||''); return m?m[2]+'/'+m[1]:(key||''); }
+
+/* Letzter Sonntag eines Monats (0-basiert) als UTC-Zeitstempel. */
+function lastSunday(year, monthIdx){
+  var d=new Date(Date.UTC(year, monthIdx+1, 0));
+  d.setUTCDate(d.getUTCDate()-d.getUTCDay());
+  return d;
+}
+/* Deutscher UTC-Offset: MESZ (+02:00) zwischen dem letzten Sonntag im März und
+   dem letzten Sonntag im Oktober, sonst MEZ (+01:00). Die Spezifikation verlangt
+   ein vollständiges date-time; ein falscher Offset kann das Datum verschieben. */
+function germanOffset(iso){
+  var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||''); if(!m) return '+01:00';
+  var y=+m[1], t=Date.UTC(y,+m[2]-1,+m[3]);
+  return (t>=lastSunday(y,2).getTime() && t<lastSunday(y,9).getTime()) ? '+02:00' : '+01:00';
+}
+function isoToDateTime(iso){ return iso ? iso+'T00:00:00.000'+germanOffset(iso) : ''; }
+
+/* ---------------- Konten in technische Maximallänge ---------------- */
+/* Sachkonto -> 8-stellig, Personenkonto -> 9-stellig: erst mit führenden Nullen
+   auf die Anzeigelänge (Sachkontenlänge L bzw. L+1), dann mit nachgestellten
+   Nullen auf die Maximallänge. 1370 bei L=4 -> 13700000. Idempotent. */
+function toTechnical(acc, isSub, accountLength){
+  var s=String(acc==null?'':acc).replace(/\D/g,''); if(!s) return 0;
+  var L=accountLength||4, disp=isSub?L+1:L, maxLen=isSub?9:8;
+  if(s.length>maxLen) s=s.slice(0,maxLen);
+  if(s.length<disp) s=('00000000'+s).slice(-disp);
+  while(s.length<maxLen) s=s+'0';
+  return parseInt(s,10);
+}
+/* Technische Nummer zurück auf die Anzeigenummer (nur zur Darstellung). */
+function toDisplay(acc, isSub, accountLength){
+  var s=String(acc==null?'':acc).replace(/\D/g,''); if(!s) return '';
+  var L=accountLength||4, disp=isSub?L+1:L, maxLen=isSub?9:8;
+  if(s.length===maxLen && maxLen>disp){
+    var cut=s.slice(0,disp), rest=s.slice(disp);
+    if(/^0*$/.test(rest)) return cut;
+  }
+  return s;
+}
+
+/* ---------------- Normalisierung ---------------- */
+/* Generalumkehrbuchungen liefert DATEV mit NEGATIVEM Betrag, und zwar im Feld der
+   Seite, auf der sie im Kontoblatt stehen (beobachtet: amount_credit: -4260.68 zum
+   Storno einer Sollbuchung). Vorgabe von Andreas (14.09.2026): ein solcher Satz wird
+   als negativer SOLL-Umsatz gefuehrt - dann hebt er die Originalbuchung in der
+   Saldierung ueber Belegfeld 1 auf.
+   Umgelegt wird NUR, wenn general_reversal gesetzt ist, genau eines der beiden
+   Betragsfelder besetzt ist und dieses negativ ist. Alles andere bleibt so stehen,
+   wie es geliefert wurde - es wird nichts geraten. Die Rohwerte bleiben in
+   rawDebit/rawCredit erhalten und sind in der Tabelle "Rohwerte" einsehbar. */
+function normPosting(p){
+  var soll=num(p.amount_debit), haben=num(p.amount_credit);
+  var isRev = p.general_reversal===true || p.general_reversal==='true';
+  var revShifted = false;
+  if(isRev){
+    if(soll<0 && haben===0){ revShifted=true; }
+    else if(haben<0 && soll===0){ soll=haben; haben=0; revShifted=true; }
+  }
+  var side = revShifted ? 'S'
+           : ((soll>0 && haben>0) ? '?' : (soll>0 ? 'S' : (haben>0 ? 'H' : '')));
+  return {
+    id: p.id!=null?String(p.id):'',
+    rawDebit: num(p.amount_debit), rawCredit: num(p.amount_credit),
+    revShifted: revShifted,
+    iso: isoDate(p.date),
+    doc1: String(p.document_field1==null?'':p.document_field1).trim(),
+    doc2: String(p.document_field2==null?'':p.document_field2).trim(),
+    text: String(p.posting_description==null?'':p.posting_description).trim(),
+    soll: r2(soll), haben: r2(haben),
+    side: side,
+    amount: revShifted ? r2(soll) : r2(soll>0?soll:haben),
+    signed: r2(soll-haben),
+    contra: p.contra_account_number!=null?num(p.contra_account_number):0,
+    account: p.account_number!=null?num(p.account_number):0,
+    btk: (p.accounting_transaction_key!=null && p.accounting_transaction_key!=='')
+          ? num(p.accounting_transaction_key) : null,
+    kost1: p.kost1_cost_center_id!=null?String(p.kost1_cost_center_id):'',
+    kost2: p.kost2_cost_center_id!=null?String(p.kost2_cost_center_id):'',
+    currency: String(p.currency_code==null?'':p.currency_code).trim().toUpperCase(),
+    seq: String(p.accounting_sequence_id==null?'':p.accounting_sequence_id),
+    isEB: p.is_opening_balance_posting===true,
+    reversal: isRev
+  };
+}
+function normOpenItem(o){
+  var hasBal = o.open_balance_of_item!=null && o.open_balance_of_item!=='';
+  return {
+    id: o.id!=null?String(o.id):'',
+    account: o.account_number!=null?num(o.account_number):0,
+    doc1: String(o.document_field1==null?'':o.document_field1).trim(),
+    doc2: String(o.document_field2==null?'':o.document_field2).trim(),
+    text: String(o.posting_description==null?'':o.posting_description).trim(),
+    iso: isoDate(o.date),
+    dueIso: isoDate(o.due_date||o.assigned_due_date),
+    dueDays: o.due_days!=null?num(o.due_days):null,
+    amount: r2(num(o.amount_debit)>0?num(o.amount_debit):num(o.amount_credit)),
+    hasBal: hasBal,
+    bal: hasBal?r2(Math.abs(num(o.open_balance_of_item))):null,
+    balSide: String(o.debit_credit_identifier==null?'':o.debit_credit_identifier).trim().toUpperCase(),
+    evidence: String(o.evidence_type==null?'':o.evidence_type),
+    cleared: o.is_cleared===true,
+    condensed: o.is_condensed===true,
+    seq: String(o.accounting_sequence_id==null?'':o.accounting_sequence_id),
+    caption: ''
+  };
+}
+
+/* ---------------- Vergleichsregeln ---------------- */
+/* Standard: identisch bis auf Groß-/Kleinschreibung und Randleerzeichen.
+   Tolerant (abschaltbare Option): Trenn-/Sonderzeichen und führende Nullen weg. */
+function docKey(s, tolerant){
+  var t=String(s==null?'':s).trim().toUpperCase();
+  if(!tolerant) return t;
+  /* führende Nullen je Zifferngruppe entfernen: 000123 -> 123, RE-0100 -> RE100 */
+  t=t.replace(/[^A-Z0-9]/g,'').replace(/(^|[^0-9])0+(\d)/g,'$1$2');
+  return t;
+}
+/* Welcher Betrag des offenen Postens wird verglichen? */
+function opValue(item, basis, balFallback){
+  if(basis==='amount') return { value:item.amount, src:'amount' };
+  if(item.hasBal) return { value:item.bal, src:'balance' };
+  if(balFallback) return { value:item.amount, src:'amount-fallback' };
+  return { value:null, src:null };
+}
+function amtEq(a,b,tol){
+  if(a==null||b==null) return false;
+  var t=isFinite(tol)?Math.abs(tol):0;
+  return Math.abs(r2(a)-r2(b)) <= r2(t)+0.0001;
+}
+
+/* ---------------- Buchbarkeit ---------------- */
+/* Gibt einen Klartextgrund zurück, wenn aus dieser Buchung kein Buchungssatz
+   gebildet werden kann — oder null, wenn sie buchbar ist. Nichts wird still
+   übersprungen: der Grund erscheint in der Tabelle und in der Zusammenfassung. */
+function blockReason(p, baseCurrency){
+  /* Eine Generalumkehr storniert bereits eine andere Buchung — sie wird nicht noch
+     einmal storniert. Ihr Umsatz zählt aber in der Saldierung über Belegfeld 1 mit. */
+  if(p.reversal) return p.revShifted
+    ? 'Generalumkehrbuchung (Umsatz '+fmtQ(p.soll)+' € Soll) — sie storniert bereits eine andere '+
+      'Buchung und wird nicht erneut storniert. In der Saldierung über Belegfeld 1 zählt sie mit.'
+    : 'Generalumkehrbuchung mit nicht eindeutigen Rohwerten (amount_debit '+fmtQ(p.rawDebit)+
+      ', amount_credit '+fmtQ(p.rawCredit)+') — der Umsatz ist nicht bestimmbar, es wird nichts umgedeutet.';
+  if(p.side==='?') return 'Soll und Haben gleichzeitig gefüllt — die Seite des Umsatzes ist nicht bestimmbar.';
+  if(!p.side || !(p.amount>0)) return 'Umsatz 0,00 € — es gibt nichts zu stornieren.';
+  if(!p.contra) return 'Kein Gegenkonto geliefert (contra_account_number) — die Gegenbuchung ist nicht bestimmbar.';
+  if(p.currency && p.currency!==(baseCurrency||'EUR'))
+    return 'Fremdwährung '+p.currency+' — Umsatz und Kurs müssten gesondert übergeben werden.';
+  if(p.amount>9999999999.99) return 'Umsatz überschreitet den zulässigen Höchstwert der Schnittstelle.';
+  return null;
+}
+
+/* ---------------- Zuordnung ---------------- */
+/* Ergebnis je Buchung des Klärungskontos:
+     status  'green'  Belegfeld 1 UND Betrag stimmen überein
+             'yellow' nur der Betrag stimmt überein
+             'none'   kein passender offener Posten
+     opId    zugeordneter offener Posten (bei grünem wie gelbem Treffer vorbelegt)
+     checked Vorbelegung des Hakens
+   Ein offener Posten wird höchstens EINER Buchung automatisch zugeordnet —
+   sonst würden zwei Buchungen denselben Posten ausgleichen. */
+function matchAll(postings, items, cfg){
+  var tol = isFinite(cfg.tol)?cfg.tol:0;
+  var basis = cfg.basis||'balance';
+  var rows = postings.slice().sort(function(a,b){
+    if(a.iso!==b.iso) return a.iso<b.iso?-1:1;
+    return String(a.id).localeCompare(String(b.id),'de',{numeric:true});
+  }).map(function(p){
+    return { p:p, status:'none', cands:[], exact:[], opId:'', checked:false,
+             note:'', blocked: blockReason(p, cfg.baseCurrency) };
+  });
+  var vals = items.map(function(it){ return opValue(it, basis, !!cfg.balFallback); });
+  var used = {};
+
+  rows.forEach(function(r){
+    var pk = docKey(r.p.doc1, !!cfg.docTol);
+    items.forEach(function(it,i){
+      var v = vals[i];
+      if(v.value==null) return;
+      if(!amtEq(r.p.amount, v.value, tol)) return;
+      var hit = { item:it, value:v.value, src:v.src,
+                  exact: (pk!=='' && pk===docKey(it.doc1, !!cfg.docTol)) };
+      r.cands.push(hit);
+      if(hit.exact) r.exact.push(hit);
+    });
+  });
+
+  function take(r, list){
+    for(var i=0;i<list.length;i++){
+      if(used[list[i].item.id]) continue;
+      used[list[i].item.id] = r.p.id;
+      r.opId = list[i].item.id;
+      return true;
+    }
+    return false;
+  }
+
+  /* 1. Durchgang: eindeutige Treffer auf Belegfeld 1 UND Betrag — grün, Haken vorbelegt. */
+  rows.forEach(function(r){
+    if(r.exact.length!==1) return;
+    if(!take(r, r.exact)) return;
+    r.status='green'; r.checked = !r.blocked;
+  });
+  /* 2. Durchgang: mehrere belegnummern- und betragsgleiche Posten — der ERSTE freie
+     wird zugeordnet, die Zeile bleibt grün und der Haken vorbelegt. Der Hinweis
+     „mehrdeutig“ macht sichtbar, dass es Alternativen gibt (Auswahlfeld). */
+  rows.forEach(function(r){
+    if(r.status==='green' || !r.exact.length) return;
+    r.status='green';
+    if(take(r, r.exact)){ r.note='mehrdeutig'; r.checked = !r.blocked; }
+    else { r.note='op-belegt'; r.checked=false; }
+  });
+  /* 3. Durchgang: nur der Betrag stimmt — der ERSTE freie Posten wird zugeordnet und
+     der Haken vorbelegt (Vorgabe von Andreas ab v1.2.0). Findet sich kein freier
+     Posten, bleibt die Zeile unzugeordnet und unmarkiert. */
+  rows.forEach(function(r){
+    if(r.status==='green' || !r.cands.length) return;
+    r.status='yellow';
+    if(take(r, r.cands)){ r.checked = !r.blocked; }
+    else { r.note='op-belegt'; r.checked=false; }
+  });
+  return rows;
+}
+
+/* ---------------- Saldierung über Belegfeld 1 ---------------- */
+/* Buchungen mit GLEICHEM Belegfeld 1, deren Summe aus (Soll − Haben) über alle
+   Buchungen der Gruppe 0,00 € ergibt, gelten als geklärt bzw. bereits ausgebucht.
+   Gerechnet wird mit den GELIEFERTEN Werten (p.signed), inkl. der oben auf die
+   Soll-Seite gelegten Generalumkehrbuchungen.
+   Zwei Regeln, die nichts verschwinden lassen dürfen:
+     - Buchungen OHNE Belegfeld 1 bilden je Buchung eine eigene Gruppe und werden
+       deshalb NIE ausgeblendet.
+     - Eine Gruppe aus nur EINER Buchung wird nie ausgeblendet, auch wenn ihr Umsatz
+       0,00 € ist — sonst verschwände eine Einzelbuchung unbemerkt.
+   Grenze 0,005 € (halber Cent). */
+var SETTLE_EPS = 0.005;
+function balanceKey(p, tolerant){
+  var k = docKey(p.doc1, tolerant);
+  return k==='' ? '\u0000ohne\u0000'+p.id : k;
+}
+function settleByDocument(postings, cfg){
+  var map={}, order=[];
+  postings.forEach(function(p){
+    var k=balanceKey(p, !!(cfg&&cfg.docTol));
+    if(!map[k]){ map[k]={ key:k, doc1:p.doc1, noDoc:(docKey(p.doc1,!!(cfg&&cfg.docTol))===''),
+                          postings:[], sum:0, settled:false }; order.push(k); }
+    map[k].postings.push(p);
+  });
+  var open=[], cleared=[], groups=[];
+  order.forEach(function(k){
+    var g=map[k];
+    g.sum = r2(g.postings.reduce(function(a,p){ return a+p.signed; },0));
+    g.settled = !g.noDoc && g.postings.length>1 && Math.abs(g.sum) < SETTLE_EPS;
+    if(g.settled){ groups.push(g); g.postings.forEach(function(p){ cleared.push(p); }); }
+    else { g.postings.forEach(function(p){ open.push(p); }); }
+  });
+  return { open:open, cleared:cleared, groups:groups };
+}
+
+/* ---------------- Diagnose: warum kein Treffer? ---------------- */
+/* Keine Vermutungen, nur Zahlen aus den gelieferten Daten. Drei Bausteine:
+     itemStats()     - was ist ueberhaupt an offenen Posten da
+     probeVariants() - welche Einstellung wuerde wie viele Treffer mehr bringen
+     nearestItems()  - die betragsnaechsten Posten je Buchung, mit Grund
+   probeVariants rechnet die Alternative wirklich durch (matchAll mit geaenderter
+   Konfiguration) - es wird nichts geschaetzt. */
+function cloneCfg(cfg){ var o={}; Object.keys(cfg||{}).forEach(function(k){ o[k]=cfg[k]; }); return o; }
+function countMatched(rows){
+  return rows.filter(function(r){ return r.status!=='none'; }).length;
+}
+function itemStats(items, cfg){
+  var basis=(cfg&&cfg.basis)||'balance', fb=!!(cfg&&cfg.balFallback);
+  var withBal=0, without=0, min=null, max=null, usable=0;
+  items.forEach(function(it){
+    if(it.hasBal) withBal++; else without++;
+    var v=opValue(it, basis, fb);
+    if(v.value==null) return;
+    usable++;
+    if(min===null || v.value<min) min=v.value;
+    if(max===null || v.value>max) max=v.value;
+  });
+  return { total:items.length, withBal:withBal, without:without,
+           usable:usable, min:min, max:max, basis:basis, balFallback:fb };
+}
+function amountRange(postings){
+  var min=null, max=null;
+  postings.forEach(function(p){
+    var a=p.amount;
+    if(min===null || a<min) min=a;
+    if(max===null || a>max) max=a;
+  });
+  return { min:min, max:max };
+}
+function probeVariants(postings, items, cfg){
+  var base=countMatched(matchAll(postings, items, cfg));
+  var out=[], c;
+  function add(label, c2){
+    var n=countMatched(matchAll(postings, items, c2));
+    if(n>base) out.push({ label:label, plus:n-base, total:n });
+  }
+  if((cfg.basis||'balance')==='balance'){
+    if(!cfg.balFallback){
+      c=cloneCfg(cfg); c.balFallback=true;
+      add('Schalter \u201eOffener Saldo nicht geliefert \u2192 ersatzweise den Ursprungsbetrag verwenden\u201c einschalten', c);
+    }
+    c=cloneCfg(cfg); c.basis='amount';
+    add('Betragsvergleich auf \u201eUrsprungsbetrag\u201c umstellen', c);
+  }else{
+    c=cloneCfg(cfg); c.basis='balance';
+    add('Betragsvergleich auf \u201eoffenen Saldo\u201c umstellen', c);
+  }
+  [0.01,0.05,0.50,1.00,5.00].forEach(function(t){
+    if(t<=(isFinite(cfg.tol)?cfg.tol:0)) return;
+    c=cloneCfg(cfg); c.tol=t;
+    add('Betragstoleranz auf '+fmtQ(t)+' \u20ac setzen', c);
+  });
+  return { base:base, options:out };
+}
+/* Die n betragsnaechsten offenen Posten zu einer Buchung, jeder mit dem Grund,
+   warum er nicht zugeordnet wurde. Verglichen wird auf der eingestellten Basis;
+   fehlt der Wert dort, wird zur ANZEIGE der Ursprungsbetrag herangezogen und das
+   ausdruecklich gekennzeichnet. */
+function nearestItems(p, items, cfg, rows, n){
+  var basis=cfg.basis||'balance', tol=isFinite(cfg.tol)?Math.abs(cfg.tol):0;
+  var owner={};
+  (rows||[]).forEach(function(r){ if(r.opId) owner[r.opId]=r.p.id; });
+  var list=items.map(function(it){
+    var v=opValue(it, basis, !!cfg.balFallback);
+    var shown=(v.value!=null)?v.value:it.amount;
+    var diff=r2(Math.abs(r2(p.amount)-r2(shown)));
+    var why, cls;
+    if(v.value==null){
+      why='ohne open_balance_of_item \u2014 nimmt bei dieser Einstellung nicht teil'; cls='err';
+    }else if(!amtEq(p.amount, v.value, tol)){
+      why='Betrag weicht um '+fmt(diff)+' \u20ac ab'; cls='warn';
+    }else if(owner[it.id] && owner[it.id]!==p.id){
+      why='betragsgleich, aber schon einer anderen Buchung zugeordnet'; cls='warn';
+    }else{
+      why='passt'; cls='ok';
+    }
+    return { item:it, value:v.value, shown:shown, src:v.src, diff:diff, why:why, cls:cls };
+  });
+  list.sort(function(a,b){ return a.diff-b.diff; });
+  return list.slice(0, n||3);
+}
+
+/* Mehrfach identisch gelieferte offene Posten zusammenfassen.
+   Zusammengefasst wird nur, was in ALLEN bewertungsrelevanten Feldern gleich ist
+   (Kreditor, Belegfeld 1, Saldo, Ursprungsbetrag, Belegdatum, Fälligkeit,
+   Buchungstext). Dadurch ändert sich kein Wert — es verschwindet nur die
+   Dopplung in der Auswahl. Die Anzahl wird zurückgegeben und ausgewiesen. */
+function itemKey(it){
+  return [it.account, it.doc1, it.hasBal?it.bal:'-', it.amount,
+          it.iso, it.dueIso, it.text].join('\u0001');
+}
+function collapseItems(items){
+  var map={}, out=[], collapsed=0;
+  items.forEach(function(it){
+    var k=itemKey(it), first=map[k];
+    if(first){ first.dupCount=(first.dupCount||1)+1; collapsed++; return; }
+    it.dupCount=1; map[k]=it; out.push(it);
+  });
+  return { items:out, collapsed:collapsed };
+}
+
+/* Zugeordneten Posten einer Zeile holen. */
+function assignedItem(row, items){
+  if(!row.opId) return null;
+  for(var i=0;i<items.length;i++) if(items[i].id===row.opId) return items[i];
+  return null;
+}
+
+/* Doppelte Zuordnung desselben offenen Postens unter den markierten Zeilen. */
+function duplicateAssignments(rows){
+  var seen={}, dup={};
+  rows.forEach(function(r){
+    if(!r.checked || !r.opId) return;
+    if(seen[r.opId]) dup[r.opId]=true; else seen[r.opId]=true;
+  });
+  return Object.keys(dup);
+}
+
+/* ---------------- Buchungssätze ---------------- */
+function clip(s,n){ return String(s==null?'':s).slice(0,n); }
+function addCommon(rec, p){
+  if(p.doc2) rec.document_field2 = clip(p.doc2,12);
+  if(p.btk!=null) rec.accounting_transaction_key = p.btk;
+  if(p.kost1) rec.kost1_cost_center_id = clip(p.kost1,36);
+  if(p.kost2) rec.kost2_cost_center_id = clip(p.kost2,36);
+  return rec;
+}
+/* Soll-/Haben-Kennzeichen umdrehen. Leere oder unbestimmbare Seiten ('' oder '?')
+   bleiben unverändert — solche Buchungen sind ohnehin über blockReason() gesperrt. */
+function flipSide(side){ return side==='S' ? 'H' : (side==='H' ? 'S' : side); }
+
+/* Generalumkehr: Konto, Gegenkonto, Betrag und Nebenfelder der Buchung auf dem
+   Klärungskonto werden übernommen, das Soll-/Haben-Kennzeichen aber UMGEDREHT.
+   Begründung (am Echtsystem belegt, Kontoblatt 1310 vom 14.09.2026): DATEV dreht
+   einen Satz mit general_reversal:true beim Import selbst auf die Gegenseite und
+   negiert den Betrag. Mit gleicher Seite übergeben landet das Storno deshalb als
+   negativer Umsatz auf der GEGENSEITE und verdoppelt den Saldo, statt ihn
+   aufzuheben. Mit gedrehter Seite erscheint es als negativer Umsatz auf der Seite
+   der Originalbuchung und hebt sie auf. */
+function buildReversal(p, cfg){
+  var rec = {
+    amount: p.amount,
+    debit_credit_identifier: flipSide(p.side),
+    account_number: cfg.ktoKlaerung,
+    contra_account_number: p.contra,
+    date: isoToDateTime(p.iso),
+    general_reversal: true
+  };
+  if(p.doc1) rec.document_field1 = clip(p.doc1,36);
+  var txt = ((cfg.prefixGu?cfg.prefixGu+' ':'') + (p.text||'')).trim();
+  if(txt) rec.posting_description = clip(txt,60);
+  return addCommon(rec,p);
+}
+/* Neubuchung: wie die Buchung auf dem Klärungskonto, nur mit dem Kreditor
+   (dann auch mit dessen Belegfeld 1) bzw. dem Ausbuchungskonto statt des
+   Klärungskontos. */
+function buildRebooking(p, item, cfg){
+  var rec = {
+    amount: p.amount,
+    debit_credit_identifier: p.side,
+    account_number: item ? item.account : cfg.ktoAusbuchung,
+    contra_account_number: p.contra,
+    date: isoToDateTime(p.iso),
+    general_reversal: false
+  };
+  var d1 = item ? item.doc1 : p.doc1;
+  if(d1) rec.document_field1 = clip(d1,36);
+  var txt = ((cfg.prefixNeu?cfg.prefixNeu+' ':'') + (p.text||'')).trim();
+  if(txt) rec.posting_description = clip(txt,60);
+  return addCommon(rec,p);
+}
+/* Alle Buchungssätze zu den markierten Zeilen, paarweise: Storno + Neubuchung. */
+function buildRecords(rows, items, cfg){
+  var out=[];
+  rows.forEach(function(r){
+    if(!r.checked || r.blocked) return;
+    var item = r.opId ? assignedItem(r, items) : null;
+    out.push({ kind:'gu',  row:r, item:item, rec:buildReversal(r.p, cfg) });
+    out.push({ kind:'neu', row:r, item:item, rec:buildRebooking(r.p, item, cfg) });
+  });
+  return out;
+}
+
+/* ---------------- Buchungsstapel ---------------- */
+/* Platzhalter im Stapelnamen: {MM} Monat zweistellig, {JJ}/{YY} Jahr zweistellig,
+   {JJJJ}/{YYYY} Jahr vierstellig — gefüllt aus dem Buchungsmonat des Stapels.
+   Ohne Platzhalter wird bei Monatsaufteilung wie bisher "MM/JJJJ" angehängt. */
+function hasSeqPlaceholder(tpl){ return /\{(MM|JJ|JJJJ|YY|YYYY)\}/.test(String(tpl==null?'':tpl)); }
+function seqNameFor(tpl, mkey){
+  var m=/^(\d{4})-(\d{2})$/.exec(mkey||'');
+  var JJJJ=m?m[1]:'', MM=m?m[2]:'', JJ=m?m[1].slice(2):'';
+  return String(tpl==null?'':tpl)
+    .replace(/\{MM\}/g,MM).replace(/\{JJJJ\}/g,JJJJ).replace(/\{YYYY\}/g,JJJJ)
+    .replace(/\{JJ\}/g,JJ).replace(/\{YY\}/g,JJ);
+}
+var SEQ_DESC_MAX = 30;   /* description, Accounting-1.7.4.4.json */
+function buildSequences(entries, cfg){
+  if(!entries.length) return [];
+  var groups=[];
+  if(cfg.split==='month'){
+    var map={};
+    entries.forEach(function(e){
+      var k=monthKey(isoDate(e.rec.date))||'ohne';
+      if(!map[k]){ map[k]={key:k, entries:[]}; groups.push(map[k]); }
+      map[k].entries.push(e);
+    });
+    groups.sort(function(a,b){ return a.key<b.key?-1:a.key>b.key?1:0; });
+  }else{
+    groups=[{ key:'', entries:entries.slice() }];
+  }
+  return groups.map(function(g){
+    var isos=g.entries.map(function(e){ return isoDate(e.rec.date); })
+                      .filter(Boolean).sort();
+    var from=isos[0]||cfg.fallbackIso||'';
+    var to=isos[isos.length-1]||from;
+    var tpl=cfg.seqName||'Klärung';
+    var desc=seqNameFor(tpl, g.key || monthKey(from));
+    if(g.key && !hasSeqPlaceholder(tpl)) desc=(desc+' '+monthLabel(g.key));
+    return {
+      key: g.key,
+      months: uniqueMonths(g.entries),
+      descFull: desc,
+      descCut: desc.length>SEQ_DESC_MAX,
+      body: {
+        date_from: isoToDateTime(from),
+        date_to: isoToDateTime(to),
+        description: clip(desc,SEQ_DESC_MAX),
+        record_type: 'financial_accounting',
+        accounting_reason: 'independent_from_accounting_reason',
+        is_committed: !!cfg.commit,
+        application_information: cfg.appInfo||'AHA Hausmann Klärungs-Tool',
+        accounting_records: g.entries.map(function(e){ return e.rec; })
+      }
+    };
+  });
+}
+function uniqueMonths(entries){
+  var s={}, out=[];
+  entries.forEach(function(e){ var k=monthKey(isoDate(e.rec.date)); if(k&&!s[k]){s[k]=1;out.push(k);} });
+  return out.sort();
+}
+
+/* ---------------- Steuereinsparpotenzial ---------------- */
+/* Vorsteuer  = Brutto × v/(100+v)      (19 % -> 19/119)
+   Netto      = Brutto − Vorsteuer      (= Brutto ÷ 1,19)
+   Ertrag     = Netto × e/100           (30 % vom Netto)
+   Potenzial  = Vorsteuer + Ertrag      (19/30 -> 41,18 % des Brutto) */
+function taxPotential(brutto, v, e){
+  var b=Math.abs(num(brutto));
+  var vst = b*(num(v)/(100+num(v)));
+  var netto = b-vst;
+  var ertrag = netto*(num(e)/100);
+  return { vst:r2(vst), netto:r2(netto), ertrag:r2(ertrag), total:r2(r2(vst)+r2(ertrag)) };
+}
+function taxQuotePct(v,e){
+  var a=num(v)/(100+num(v));
+  return (a + (1-a)*(num(e)/100))*100;
+}
+/* Kurze, für Mandanten verständliche Erläuterung der Quote — an einem
+   Beispielbetrag von 100 € vorgerechnet, aus den eingestellten Sätzen. */
+function taxFootnote(v,e){
+  var t=taxPotential(100,v,e), q=taxQuotePct(v,e);
+  return '* So kommt der Wert zustande — gerechnet an einer Rechnung über 100,00 €:\n'+
+    '  1. '+pct(v)+' % Umsatzsteuer sind darin mit '+fmt(t.vst)+' € enthalten. '+
+    'Mit dem Beleg holen wir diese als Vorsteuer zurück.\n'+
+    '  2. Die restlichen '+fmt(t.netto)+' € netto mindern als Betriebsausgabe den Gewinn. '+
+    'Bei '+pct(e)+' % Steuerbelastung sind das weitere '+fmt(t.ertrag)+' €.\n'+
+    '  Zusammen '+fmt(t.total)+' € von 100,00 € — also rund '+Math.round(q)+' %. '+
+    'Ohne Beleg entfällt beides: keine Vorsteuer und keine Betriebsausgabe.';
+}
+
+/* ---------------- E-Mail ---------------- */
+/* Grundlage sind die NICHT markierten Positionen (Vorgabe von Andreas):
+   sie bleiben auf dem Klärungskonto stehen, weil der Beleg fehlt. */
+function mailRows(rows, cfg){
+  return rows.filter(function(r){
+    if(r.checked) return false;
+    if(cfg.sollOnly && r.p.side!=='S') return false;
+    if(cfg.noAssigned && r.status==='green') return false;
+    if(!(r.p.amount>0)) return false;
+    return true;
+  });
+}
+function mailItems(rows, cfg){
+  return mailRows(rows,cfg).map(function(r){
+    var t=taxPotential(r.p.amount, cfg.vst, cfg.ertrag);
+    return { iso:r.p.iso, date:deDate(r.p.iso), brutto:r.p.amount, doc1:r.p.doc1,
+             text:r.p.text, side:r.p.side,
+             vst:t.vst, netto:t.netto, ertrag:t.ertrag, total:t.total };
+  });
+}
+function mailList(items){
+  return items.map(function(it){
+    return it.date+' · '+fmt(it.brutto)+' € · '+(it.text||'ohne Buchungstext')+
+      (it.doc1?' (Beleg '+it.doc1+')':'')+
+      ' · Steuereinsparpotenzial bis zu '+fmt(it.total)+' €';
+  }).join('\n');
+}
+function fillTpl(tpl, ctx){
+  return String(tpl==null?'':tpl)
+    .replace(/\{anrede\}/g, ctx.anrede)
+    .replace(/\{empfaenger\}/g, ctx.empfaenger)
+    .replace(/\{liste\}/g, ctx.liste)
+    .replace(/\{summe\}/g, ctx.summe)
+    .replace(/\{anzahl\}/g, ctx.anzahl)
+    .replace(/\{maxproz\}/g, ctx.maxproz)
+    .replace(/\{fussnote\}/g, ctx.fussnote)
+    .replace(/\{mandant\}/g, ctx.mandant)
+    .replace(/\{konto\}/g, ctx.konto);
+}
+function buildMailText(rows, cfg){
+  var items=mailItems(rows,cfg);
+  var sum=r2(items.reduce(function(a,it){ return a+it.total; },0));
+  var ctx={
+    liste: mailList(items),
+    summe: fmt(sum),
+    anzahl: String(items.length),
+    maxproz: String(Math.round(taxQuotePct(cfg.vst,cfg.ertrag))),
+    fussnote: taxFootnote(cfg.vst,cfg.ertrag),
+    mandant: cfg.mandant||'',
+    konto: String(cfg.kontoDisplay||''),
+    anrede: (cfg.anrede && String(cfg.anrede).trim()) || 'Sehr geehrter Mandant,',
+    empfaenger: cfg.empfaenger||''
+  };
+  /* Bleibt ein Platzhalter leer, entstehen sonst Leerzeilen. */
+  return { items:items, sum:sum,
+           subject: fillTpl(cfg.subjectTpl,ctx).trim(),
+           body: fillTpl(cfg.bodyTpl,ctx).replace(/\n{3,}/g,'\n\n') };
+}
+
+var MAIL_TPL_DEFAULT =
+'{anrede}\n\n'+
+'bei der Erstellung Ihrer Buchhaltung haben wir noch einige Steuersparpotenziale identifiziert.\n'+
+'Wenn Sie uns zu folgenden Sachverhalten den Beleg hochladen, können wir diese als Betriebsausgabe '+
+'steuermindernd berücksichtigen und den Vorsteuerabzug für Sie geltend machen.\n\n'+
+'Für jeden Beleg, den Sie uns für die aufgeführten Zahlungen einreichen, ist eine Steuerersparnis '+
+'von bis zu {maxproz}%* möglich.\n\n'+
+'Die Auflistung der Sachverhalte finden Sie hier:\n\n'+
+'{liste}\n\n'+
+'Laden Sie uns die fehlenden Rechnungen unter https://go.datev.de/upload hoch. '+
+'Ein eigener Belegtyp ist dafür nicht nötig.\n\n'+
+'Wir machen die maximal mögliche Steuerersparnis dann mit der nächsten Buchhaltung für Sie geltend.\n\n'+
+'{fussnote}\n';
+
+return {
+  fmt:fmt, fmtQ:fmtQ, pct:pct, esc:esc, num:num, parseDe:parseDe, r2:r2,
+  isoDate:isoDate, deDate:deDate, monthKey:monthKey, monthLabel:monthLabel,
+  germanOffset:germanOffset, isoToDateTime:isoToDateTime,
+  toTechnical:toTechnical, toDisplay:toDisplay,
+  normPosting:normPosting, normOpenItem:normOpenItem,
+  docKey:docKey, opValue:opValue, amtEq:amtEq, blockReason:blockReason, flipSide:flipSide,
+  matchAll:matchAll, itemKey:itemKey, collapseItems:collapseItems, assignedItem:assignedItem, duplicateAssignments:duplicateAssignments,
+  balanceKey:balanceKey, settleByDocument:settleByDocument, SETTLE_EPS:SETTLE_EPS,
+  cloneCfg:cloneCfg, countMatched:countMatched, itemStats:itemStats, amountRange:amountRange,
+  probeVariants:probeVariants, nearestItems:nearestItems,
+  hasSeqPlaceholder:hasSeqPlaceholder, seqNameFor:seqNameFor, SEQ_DESC_MAX:SEQ_DESC_MAX,
+  buildReversal:buildReversal, buildRebooking:buildRebooking, buildRecords:buildRecords,
+  buildSequences:buildSequences, uniqueMonths:uniqueMonths,
+  taxPotential:taxPotential, taxQuotePct:taxQuotePct, taxFootnote:taxFootnote,
+  mailRows:mailRows, mailItems:mailItems, mailList:mailList, fillTpl:fillTpl,
+  buildMailText:buildMailText, MAIL_TPL_DEFAULT:MAIL_TPL_DEFAULT
+};
+})();
+if(typeof window!=='undefined') window.KT = KT;
+</script>
+<script>
+'use strict';
+/* =====================================================================
+   Hausmann Klärungs-Tool — Bedienoberfläche und API-Zugriff
+   Konventionen aus DATEVconnect-CORS-Authentifizierung.md:
+     - keine Zugangsdaten (Anmeldung über die Windows-Sitzung)
+     - jeder fetch mit mode:'cors' + credentials:'include'
+     - GET nur mit Accept-Header (kein Preflight)
+     - Query von Hand kodieren (URLSearchParams macht aus %20 ein '+')
+     - Fallback include -> omit genau einmal, Fehler nicht verschlucken
+   ===================================================================== */
+var VERSION = 'v1.4.2';
+var $ = function(id){ return document.getElementById(id); };
+
+var S = {
+  credMode: 'include',
+  clients: [], clientId: '', clientName: '',
+  fys: [], fyId: '', fy: null, accountLength: 4, baseCurrency: 'EUR',
+  postings: [],      // ALLE normalisierten Buchungen des Klärungskontos
+  openPostings: [],  // davon die nicht ausgeglichenen (Grundlage der Tabelle)
+  clearedPostings: [], clearedGroups: [],   // Ergebnis der Saldierung über Belegfeld 1
+  items: [],         // offene Posten der Kreditoren
+  rows: [],          // Gegenüberstellung (KT.matchAll)
+  entries: [],       // Buchungssätze mit Herkunft
+  captions: {},      // Kreditorennummer -> Bezeichnung
+  captionErr: '',
+  noBalCount: 0, opCollapsed: 0, opStalled: false,
+  opDelivered: 0, opPages: 0,
+  clientNumber: '', contact: null, contactErr: '',
+  mail: null,
+  posted: []         // bereits übergebene Stapel
+};
+
+/* ---------------- kleine Helfer ---------------- */
+function esc(s){ return KT.esc(s); }
+function fmt(n){ return KT.fmt(n); }
+function fmtQ(n){ return KT.fmtQ(n); }
+function deDate(s){ return KT.deDate(s); }
+function note(cls, html){ return '<div class="notice '+cls+'">'+html+'</div>'; }
+function kpi(label, value, accent){
+  return '<div class="kpi'+(accent?' accent':'')+'"><div class="l">'+label+
+         '</div><div class="v">'+value+'</div></div>';
+}
+function setStatus(id, cls, html){
+  var el=$(id);
+  el.innerHTML = cls==='load' ? '<span class="spin"></span> '+html
+                              : '<span class="pill '+cls+'">'+html+'</span>';
+}
+function markDone(id){ var e=$(id); e.classList.add('done'); e.textContent='✓'; }
+function undone(id){ var e=$(id); e.classList.remove('done'); e.textContent=id.slice(1); }
+function enable(id){ $(id).classList.remove('dim'); }
+function disable(id){ $(id).classList.add('dim'); }
+function diag(line){
+  var el=$('diag'); if(!el) return;
+  el.textContent += (el.textContent?'\n':'') + line;
+  el.scrollTop = el.scrollHeight;
+  syncDiag();
+}
+function syncDiag(){
+  var el=$('diag');
+  el.style.display = ($('cfgDiag').checked && el.textContent) ? 'block' : 'none';
+}
+
+/* ---------------- Konfigurationszugriff ---------------- */
+function baseUrl(){ return DATEVCONNECT_BASE.replace(/\/+$/,'')+'/accounting/v1'; }
+function baseUrlMd(){ return DATEVCONNECT_BASE.replace(/\/+$/,'')+'/master-data/v1'; }
+$('baseEcho').textContent = baseUrl();
+$('baseEchoMd').textContent = baseUrlMd();
+function accLen(){ return S.accountLength||4; }
+function ktoKlaerung(){ return KT.toTechnical($('cfgKtoKlaerung').value,false,accLen()); }
+function ktoAusbuchung(){ return KT.toTechnical($('cfgKtoAusbuchung').value,false,accLen()); }
+function satzVst(){ var n=KT.parseDe($('cfgVst').value); return isFinite(n)?n:0; }
+function satzErtrag(){ var n=KT.parseDe($('cfgErtrag').value); return isFinite(n)?n:0; }
+function tolEur(){ var n=KT.parseDe($('cfgTol').value); return isFinite(n)?Math.abs(n):0; }
+function opTop(){ var n=parseInt(String($('cfgOpTop').value).replace(/\D/g,''),10);
+  return (isFinite(n)&&n>0)?Math.min(n,5000):1000; }
+function matchCfg(){
+  return { basis: $('cfgBasis').value, tol: tolEur(), docTol: $('cfgDocTol').checked,
+           balFallback: $('cfgBalFallback').checked, baseCurrency: S.baseCurrency };
+}
+function recCfg(){
+  return { ktoKlaerung: ktoKlaerung(), ktoAusbuchung: ktoAusbuchung(),
+           prefixGu: $('cfgPrefixGu').value.trim(), prefixNeu: $('cfgPrefixNeu').value.trim() };
+}
+function seqCfg(){
+  return { split: $('cfgSplit').value, seqName: $('cfgSeqName').value.trim(),
+           commit: $('cfgCommit').checked,
+           appInfo: 'AHA Hausmann Klaerungs-Tool '+VERSION,
+           fallbackIso: fyStartIso() };
+}
+function mailCfg(){
+  return { vst: satzVst(), ertrag: satzErtrag(),
+           sollOnly: $('cfgMailSollOnly').checked, noAssigned: $('cfgMailNoAssigned').checked,
+           mandant: S.clientName||'', kontoDisplay: $('cfgKtoKlaerung').value.trim(),
+           anrede: (S.contact && S.contact.salutation) || '',
+           empfaenger: (S.contact && S.contact.name) || '',
+           subjectTpl: $('mailSubjectTpl').value, bodyTpl: $('mailBodyTpl').value };
+}
+function fyStartIso(){
+  return /^\d{8}$/.test(S.fyId) ? S.fyId.slice(0,4)+'-'+S.fyId.slice(4,6)+'-'+S.fyId.slice(6,8) : '';
+}
+/* Welcher Monat wird in den Stapelnamen eingesetzt? Bei Monatsaufteilung je Stapel,
+   sonst der Monat des frühesten Belegdatums; ohne Daten der laufende Monat. */
+function seqPreviewMonth(){
+  var isos=S.entries.map(function(e){ return KT.isoDate(e.rec.date); }).filter(Boolean).sort();
+  if(isos.length) return KT.monthKey(isos[0]);
+  var d=new Date();
+  return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2);
+}
+function updateSeqEcho(){
+  var tpl=$('cfgSeqName').value;
+  var name=KT.seqNameFor(tpl, seqPreviewMonth());
+  var max=KT.SEQ_DESC_MAX, over=name.length>max;
+  $('seqNameEcho').textContent = name || '—';
+  $('seqNameEcho').style.color = over ? 'var(--err)' : '';
+  $('seqNameLen').innerHTML = ' <span class="pill '+(over?'err':'neutral')+'">'+
+    name.length+' von '+max+' Zeichen'+(over?' — wird gekürzt auf "'+esc(name.slice(0,max))+'"':'')+
+    '</span>';
+}
+
+function refreshTech(){
+  $('techKlaerung').textContent = ktoKlaerung() || '—';
+  $('techAusbuchung').textContent = ktoAusbuchung() || '—';
+  $('echoLen').textContent = accLen();
+  $('cfgQuote').textContent = fmtQ(KT.taxQuotePct(satzVst(),satzErtrag()))+' %';
+}
+
+/* ---------------- API-Client ---------------- */
+function humanHint(status){
+  if(status===401||status===403) return ' (Verbindung und CORS sind in Ordnung — die Windows-Anmeldung '+
+    'wurde nicht akzeptiert oder die Berechtigung/Lizenz fehlt. Läuft der DATEV-Arbeitsplatz?)';
+  if(status===404) return ' (Endpunkt nicht verfügbar — häufig nicht lizenziert; /account-postings ist '+
+    'kostenpflichtig.)';
+  if(status===400) return ' (Anfrage abgelehnt — meist ein nicht unterstützter Filterausdruck.)';
+  return '';
+}
+function humanErr(e){
+  var m=String(e&&e.message||e);
+  if(/Failed to fetch|NetworkError|Load failed/i.test(m))
+    return 'Keine Antwort vom Dienst ('+m+'). Der Browser hat die Antwort verworfen. Mögliche Ursachen: '+
+      'DATEVconnect läuft nicht, falscher Port bzw. falsche Adresse (fest im Quelltext, Block KONFIGURATION), oder CORS wurde abgelehnt. Die genaue Ursache steht nur '+
+      'in der Netzwerk-Konsole des Browsers (dort nach „blocked by CORS policy“ suchen).';
+  return m;
+}
+function qs(params){
+  return Object.keys(params||{})
+    .filter(function(k){ var v=params[k]; return v!==undefined && v!==null && v!==''; })
+    .map(function(k){ return encodeURIComponent(k)+'='+encodeURIComponent(params[k]); })
+    .join('&');
+}
+function apiGet(path, params){ return apiGetOn(baseUrl(), path, params); }
+function apiGetOn(base, path, params){
+  var q = qs(params);
+  var url = base+path+(q?'?'+q:'');
+  var opts = function(cred){ return { mode:'cors', credentials:cred,
+                                      headers:{ 'Accept':'application/json' } }; };
+  return fetch(url, opts(S.credMode)).catch(function(e){
+    diag('GET '+url+' → ✗ fetch(credentials='+S.credMode+'): '+e.message);
+    var other = S.credMode==='include' ? 'omit' : 'include';
+    return fetch(url, opts(other)).then(function(res){   // zweite Hypothese
+      S.credMode = other;
+      diag('  ✓ funktioniert mit credentials='+other+' — wird ab jetzt verwendet');
+      return res;
+    });                                                   // schlägt auch das fehl, fliegt der Fehler weiter
+  }).then(function(res){
+    if(!res.ok){
+      return res.text().catch(function(){ return ''; }).then(function(t){
+        diag('GET '+url+' → HTTP '+res.status+' '+String(t).slice(0,400));
+        var err=new Error('HTTP '+res.status+humanHint(res.status)+(t?' — '+String(t).slice(0,400):''));
+        err.status=res.status; err.body=t; err.url=url; throw err;
+      });
+    }
+    diag('GET '+url+' → HTTP 200');
+    return res.json();
+  });
+}
+function asArr(d){ return Array.isArray(d) ? d : (d && (d.value||d.items)) || []; }
+function apiGetList(path, params){
+  return apiGet(path, params).then(asArr);
+}
+/* Blätterung: um die TATSÄCHLICH gelieferte Anzahl weiterblättern — die
+   Spezifikation warnt ausdrücklich, dass mehr Sätze als top kommen können,
+   weil zusammengehörige Posten nicht getrennt werden. Entdoppelung über id. */
+function apiGetAll(path, params, top, maxPages){
+  var all=[], seen={}, skip=0, pages=0, cap=maxPages||200;
+  function step(){
+    var p={}; Object.keys(params||{}).forEach(function(k){ p[k]=params[k]; });
+    p.top=top; p.skip=skip;
+    return apiGetList(path,p).then(function(page){
+      pages++;
+      var added=0;
+      page.forEach(function(o){
+        /* Entdoppelung über die id; fehlt sie, über den vollständigen Inhalt —
+           NICHT über die Position, sonst zählt eine erneut gelieferte Seite doppelt. */
+        var key = (o && o.id!=null) ? 'id:'+String(o.id) : 'c:'+JSON.stringify(o);
+        if(seen[key]) return;
+        seen[key]=1; all.push(o); added++;
+      });
+      if(page.length===0) return { list:all, pages:pages, truncated:false, stalled:false };
+      if(added===0){
+        /* Die Seite enthielt ausschließlich bereits gelesene Datensätze — der Dienst
+           hat skip offenbar nicht ausgewertet. Weiterblättern würde endlos laufen. */
+        diag('  ! Seite '+pages+' lieferte nur bereits gelesene Datensätze — Blätterung beendet');
+        return { list:all, pages:pages, truncated:false, stalled:true };
+      }
+      skip += page.length;
+      if(pages>=cap) return { list:all, pages:pages, truncated:true, stalled:false };
+      return step();
+    });
+  }
+  return step();
+}
+
+/* =====================================================================
+   1 · MANDANT UND WIRTSCHAFTSJAHR
+   ===================================================================== */
+$('btnConnect').onclick = function(){
+  setStatus('connStatus','load','Mandanten werden gelesen…');
+  return apiGetList('/clients').then(function(list){
+    S.clients = list;
+    if(!S.clients.length){ setStatus('connStatus','warn','Keine Mandanten geliefert'); return; }
+    S.clients.sort(function(a,b){
+      return String(a.number||'').localeCompare(String(b.number||''),'de',{numeric:true}); });
+    $('selClient').innerHTML = S.clients.map(function(c,i){
+      return '<option value="'+i+'">'+esc((c.number?c.number+' · ':'')+(c.name||c.id))+'</option>';
+    }).join('');
+    $('selClient').selectedIndex = 0;
+    $('selects').style.display='grid';
+    setStatus('connStatus','ok',S.clients.length+' Mandanten geladen');
+    return onClientChange();
+  }).catch(function(e){
+    setStatus('connStatus','err','Fehlgeschlagen');
+    $('connStatus').insertAdjacentHTML('afterend',
+      note('err','<b>Mandantenabruf fehlgeschlagen.</b><pre>'+esc(humanErr(e))+'</pre>'));
+  });
+};
+
+/* Sequenznummer für die verschachtelten Abrufe (Mandant -> Wirtschaftsjahre -> Detail):
+   eine langsame Antwort zu einer inzwischen verworfenen Auswahl darf den aktuellen
+   Zustand nicht überschreiben. */
+var reqSeq = 0;
+function setSelBusy(busy){ $('selClient').disabled=busy; $('selFy').disabled=busy; }
+
+function onClientChange(){
+  var c = S.clients[+$('selClient').value]; if(!c) return Promise.resolve();
+  var my = ++reqSeq;
+  S.clientId=c.id; S.clientName=(c.number?c.number+' · ':'')+(c.name||c.id);
+  S.clientNumber=String(c.number||''); S.contact=null; S.contactErr='';
+  $('contactResult').innerHTML=''; $('contactStatus').innerHTML='';
+  S.fyId=''; S.fys=[]; S.fy=null;
+  $('selFy').innerHTML=''; $('fyInfo').style.display='none';
+  resetFrom2();
+  setSelBusy(true);
+  return apiGetList('/clients/'+encodeURIComponent(c.id)+'/fiscal-years').then(function(fys){
+    if(my!==reqSeq) return;
+    fys.sort(function(a,b){ return String(b.id||'').localeCompare(String(a.id||'')); });
+    S.fys=fys;
+    if(!S.fys.length){
+      $('fyInfo').style.display='block'; $('fyInfo').className='notice warn';
+      $('fyInfo').innerHTML='<b>Kein Wirtschaftsjahr gefunden.</b> Der Mandant hat keine '+
+        'Buchführung in DATEVconnect.';
+      return;
+    }
+    $('selFy').innerHTML = S.fys.map(function(f,i){
+      var b=KT.isoDate(f.begin)||f.id, e=KT.isoDate(f.end);
+      return '<option value="'+i+'">'+esc(deDate(b)+(e?' – '+deDate(e):'')+
+        (i===0&&S.fys.length>1?'  (neuestes)':'')+(f.is_locked?'  (gesperrt)':''))+'</option>';
+    }).join('');
+    $('selFy').selectedIndex = 0;      // neuestes Wirtschaftsjahr ausdrücklich vorwählen
+    return applyFy(my);
+  }).catch(function(e){
+    if(my!==reqSeq) return;
+    $('fyInfo').style.display='block'; $('fyInfo').className='notice err';
+    $('fyInfo').innerHTML='<b>Wirtschaftsjahre konnten nicht gelesen werden.</b><pre>'+
+      esc(humanErr(e))+'</pre>';
+  }).then(function(){ if(my===reqSeq) setSelBusy(false); });
+}
+
+function renderFyInfo(f, L){
+  var box=$('fyInfo'); box.style.display='block';
+  var locked=f.is_locked, newest=!!(S.fys[0] && S.fys[0].id===f.id);
+  var b=KT.isoDate(f.begin)||f.id, e=KT.isoDate(f.end);
+  box.className='notice '+(locked?'warn':'ok');
+  box.innerHTML =
+    '<b>'+esc(S.clientName)+'</b> · Wirtschaftsjahr <b>'+esc(deDate(b))+
+    (e?' – '+esc(deDate(e)):'')+'</b>'+
+    (newest?' <span class="pill ok">neuestes</span>':' <span class="pill warn">nicht das neueste</span>')+
+    ' · Sachkontenlänge <b>'+esc(S.accountLength)+'</b>'+(L?'':' (nicht geliefert, Vorgabe 4)')+
+    ' · SKR '+esc(String(f.account_system||'—'))+
+    ' · Basiswährung '+esc(S.baseCurrency)+
+    (locked ? '<br>Dieses Wirtschaftsjahr ist <b>gesperrt</b> — ein Buchungsstapel wird von DATEV '+
+              'voraussichtlich abgelehnt.' : '');
+  box.classList.remove('flash'); void box.offsetWidth; box.classList.add('flash');
+}
+
+function applyFy(seq){
+  var my = (seq===undefined) ? ++reqSeq : seq;
+  var f = S.fys[+$('selFy').value]; if(!f) return Promise.resolve();
+  var changed = (f.id !== S.fyId);
+  S.fyId=f.id; S.fy=f;
+  if(changed) resetFrom2();
+  var L=f.account_length;
+  var pre = (!L && (changed || !S.accountLength))
+    ? apiGet('/clients/'+encodeURIComponent(S.clientId)+'/fiscal-years/'+encodeURIComponent(f.id))
+        .then(function(det){ if(my===reqSeq && det) { L=det.account_length;
+            if(det.currency_code) f.currency_code=det.currency_code; } })
+        .catch(function(err){ diag('Sachkontenlänge: Detailabruf fehlgeschlagen — '+err.message); })
+    : Promise.resolve();
+  return pre.then(function(){
+    if(my!==reqSeq) return;
+    if(changed || L) S.accountLength = L || 4;
+    S.baseCurrency = String(f.currency_code||'EUR').toUpperCase();
+    updateSeqEcho();
+    refreshTech();
+    renderFyInfo(f, L);
+    markDone('s1'); enable('card2');
+  });
+}
+$('selClient').onchange = onClientChange;
+$('selFy').onchange = function(){ applyFy(); };
+/* Auf einen BEREITS gewählten Eintrag feuert der Browser kein change-Event. Da das
+   neueste Wirtschaftsjahr vorausgewählt ist, wäre genau dieser Eintrag ohne jede
+   Reaktion. Der Klick bestätigt die aktuelle Auswahl deshalb zusätzlich — nicht
+   zerstörend: bei unveränderter Auswahl bleiben abgerufene Daten erhalten. */
+$('selFy').onclick = function(){ if(S.fys.length && !$('selFy').disabled) applyFy(); };
+
+/* =====================================================================
+   2 · ABRUF UND GEGENÜBERSTELLUNG
+   ===================================================================== */
+function pathFy(tail){
+  return '/clients/'+encodeURIComponent(S.clientId)+
+         '/fiscal-years/'+encodeURIComponent(S.fyId)+tail;
+}
+
+$('btnFetch').onclick = function(){ return doFetch(false); };
+
+function doFetch(noPostingFilter){
+  if(!S.clientId || !S.fyId){ setStatus('fetchStatus','err','Erst Mandant wählen'); return; }
+  var kto = ktoKlaerung();
+  if(!kto){ setStatus('fetchStatus','err','Klärungskonto ungültig'); $('settings').open=true; return; }
+  resetFrom2();
+  setStatus('fetchStatus','load','Klärungskonto und offene Posten werden gelesen…');
+  var pFilter = noPostingFilter ? {} : { filter:'account_number eq '+kto };
+  var postingsUrl = pathFy('/account-postings');
+  var opUrl = pathFy('/accounts-payable');
+  var rawPostings=null, rawItems=null, itemsPages=0, itemsTrunc=false;
+
+  return apiGetList(postingsUrl, pFilter).then(function(raw){
+    rawPostings = raw;
+    return apiGetAll(opUrl, { filter:'is_cleared eq false' }, opTop());
+  }).then(function(res){
+    rawItems = res.list; itemsPages = res.pages; itemsTrunc = res.truncated;
+    S.opStalled = !!res.stalled;
+    return loadCaptions();
+  }).then(function(){
+    afterFetch(rawPostings, rawItems, itemsPages, itemsTrunc, !!noPostingFilter);
+  }).catch(function(e){
+    setStatus('fetchStatus','err','Fehlgeschlagen');
+    var extra='';
+    if(e.status===400 && !noPostingFilter && String(e.url||'').indexOf('account-postings')>-1)
+      extra = '<div style="margin-top:9px">Der Serverfilter auf das Klärungskonto wurde abgelehnt. '+
+        'Sie können den Abruf ohne Filter wiederholen; dann werden <b>alle</b> Kontobuchungen des '+
+        'Wirtschaftsjahres geladen und erst im Browser auf das Klärungskonto eingeschränkt — das '+
+        'kann deutlich länger dauern.<div class="btnrow" style="margin-top:10px">'+
+        '<button class="btn sec" id="btnFetchNoFilter">Ohne Serverfilter erneut versuchen</button></div></div>';
+    $('fetchResult').innerHTML = note('err','<b>Abruf fehlgeschlagen. Es wurde nichts gebucht.</b>'+
+      '<pre>'+esc(String(e.url||baseUrl()))+'\n\n'+esc(humanErr(e))+'</pre>'+extra);
+    var b=$('btnFetchNoFilter'); if(b) b.onclick=function(){ doFetch(true); };
+  });
+}
+
+/* Kreditorenbezeichnungen sind eine Anzeigehilfe, kein Pflichtbestandteil.
+   Der Abruf darf fehlschlagen — das wird ausgewiesen, nicht verschluckt. */
+function loadCaptions(){
+  S.captions={}; S.captionErr='';
+  return apiGetAll(pathFy('/creditors'), { select:'account_number,caption,short_name' }, 1000, 50)
+    .catch(function(e){
+      diag('Kreditoren mit select abgelehnt ('+(e.status||'?')+') — zweiter Versuch ohne select');
+      return apiGetAll(pathFy('/creditors'), {}, 1000, 50);
+    })
+    .then(function(res){
+      res.list.forEach(function(c){
+        var n=c.account_number; if(n==null) return;
+        var cap=String(c.caption||c.short_name||'').trim();
+        if(!cap) return;
+        S.captions[String(KT.num(n))]=cap;
+        S.captions[String(KT.toTechnical(n,true,accLen()))]=cap;
+      });
+      diag('Kreditoren: '+res.list.length+' gelesen, '+Object.keys(S.captions).length+' Bezeichnungen');
+    })
+    .catch(function(e){
+      S.captionErr = humanErr(e);
+      diag('Kreditorenabruf fehlgeschlagen — '+S.captionErr);
+    });
+}
+function captionOf(accountNumber){
+  return S.captions[String(KT.num(accountNumber))] ||
+         S.captions[String(KT.toTechnical(accountNumber,true,accLen()))] || '';
+}
+
+function afterFetch(rawPostings, rawItems, itemsPages, itemsTrunc, wasUnfiltered){
+  var kto = ktoKlaerung();
+  var delivered = rawPostings.length;
+  var list = rawPostings.map(KT.normPosting);
+  var foreign = list.filter(function(p){ return p.account !== kto; }).length;
+  if(wasUnfiltered || foreign) list = list.filter(function(p){ return p.account === kto; });
+  S.postings = list;
+
+  var items = rawItems.map(KT.normOpenItem).filter(function(it){ return !it.cleared; });
+  var col = KT.collapseItems(items);
+  items = col.items;
+  items.forEach(function(it){ it.caption = captionOf(it.account); });
+  S.items = items;
+  S.opCollapsed = col.collapsed;
+  S.opDelivered = rawItems.length; S.opPages = itemsPages;
+  S.noBalCount = items.filter(function(it){ return !it.hasBal; }).length;
+
+  applySettlement();
+  S.rows = KT.matchAll(S.openPostings, S.items, matchCfg());
+  renderCompare(delivered, foreign, wasUnfiltered, itemsTrunc);
+  setStatus('fetchStatus','ok', S.postings.length+' Buchungen ('+S.openPostings.length+
+    ' zu klären) · '+S.items.length+' offene Posten');
+  markDone('s2'); enable('card3'); enable('card4');
+  rebuild();
+}
+
+/* Saldierung über Belegfeld 1 auf die abgerufenen Buchungen anwenden. Ist der
+   Schalter aus, bleiben alle Buchungen in der Tabelle — die Gruppen werden trotzdem
+   berechnet, damit die Kennzahl stimmt. */
+function applySettlement(){
+  var set = KT.settleByDocument(S.postings, matchCfg());
+  S.clearedGroups = set.groups;
+  S.clearedPostings = set.cleared;
+  S.openPostings = $('cfgHideCleared').checked ? set.open : S.postings.slice();
+}
+
+function statusPill(r){
+  if(r.blocked) return '<span class="pill err" title="'+esc(r.blocked)+'">nicht buchbar</span>';
+  if(r.status==='green' && r.note==='mehrdeutig')
+    return '<span class="pill warn">mehrdeutig</span>';
+  if(r.status==='green' && r.note==='op-belegt')
+    return '<span class="pill warn">OP schon zugeordnet</span>';
+  if(r.status==='green') return '<span class="pill ok">Beleg + Betrag</span>';
+  if(r.status==='yellow') return '<span class="pill warn">nur Betrag</span>';
+  return '<span class="pill neutral">kein OP</span>';
+}
+function flagsOf(r){
+  var out=[];
+  if(r.p.isEB) out.push('<span class="pill warn" title="Eröffnungsbilanz-Buchung">EB</span>');
+  if(r.p.reversal) out.push('<span class="pill warn" title="Buchung trägt bereits das Generalumkehr-Kennzeichen">GU</span>');
+  if(r.p.doc1==='') out.push('<span class="pill neutral" title="ohne Belegfeld 1">o. Beleg</span>');
+  return out.join(' ');
+}
+function optionText(hit, row){
+  var it=hit.item;
+  var t = KT.toDisplay(it.account,true,accLen())+' · '+(it.caption||'ohne Bezeichnung')+
+          ' · '+(it.doc1||'ohne Belegfeld 1')+' · '+KT.fmt(hit.value)+' €'+
+          (it.dueIso?' · fällig '+deDate(it.dueIso):'');
+  if(hit.exact) t += '  [Belegnr. gleich]';
+  if(hit.src==='amount-fallback') t += '  [Ursprungsbetrag]';
+  if(it.dupCount>1) t += '  ['+it.dupCount+'x identisch geliefert]';
+  var other = ownerOf(it.id);
+  if(other && other!==row.p.id) t += '  [schon Zeile '+rowIndexOf(other)+' zugeordnet]';
+  return t;
+}
+function ownerOf(opId){
+  for(var i=0;i<S.rows.length;i++) if(S.rows[i].opId===opId) return S.rows[i].p.id;
+  return '';
+}
+function rowIndexOf(pid){
+  for(var i=0;i<S.rows.length;i++) if(S.rows[i].p.id===pid) return i+1;
+  return '?';
+}
+
+function renderCompare(delivered, foreign, wasUnfiltered, itemsTrunc){
+  var kto = ktoKlaerung();
+  var html='';
+
+  if(wasUnfiltered)
+    html += note('warn','<b>Kontobuchungen ohne Serverfilter geladen.</b> Es wurden alle '+delivered+
+      ' Buchungen des Wirtschaftsjahres geliefert und im Browser auf Konto <b>'+kto+'</b> '+
+      'eingeschränkt: '+S.postings.length+' Buchungen.');
+  else if(foreign)
+    html += note('warn','<b>Der Serverfilter war nicht wirksam.</b> Von '+delivered+
+      ' gelieferten Buchungen betreffen '+S.postings.length+' das Konto '+kto+'; '+
+      foreign+' fremde Buchungen wurden verworfen.');
+
+  var green=S.rows.filter(function(r){return r.status==='green';}).length;
+  var yellow=S.rows.filter(function(r){return r.status==='yellow';}).length;
+  var none=S.rows.filter(function(r){return r.status==='none';}).length;
+  var sumSoll=KT.r2(S.postings.reduce(function(a,p){return a+p.soll;},0));
+  var sumHaben=KT.r2(S.postings.reduce(function(a,p){return a+p.haben;},0));
+
+  var nCleared=S.clearedPostings.length, nGroups=S.clearedGroups.length;
+  html += '<div class="kpis">'+
+    kpi('Buchungen auf '+kto, String(S.postings.length))+
+    kpi('Saldo des Kontos', fmt(sumSoll-sumHaben)+' €')+
+    kpi('ausgeglichen', nCleared+(nGroups?' in '+nGroups+' Belegnr.':''))+
+    kpi('zu klären', String(S.openPostings.length), true)+
+    kpi('Offene Posten Kreditoren', String(S.items.length))+
+    kpi('Beleg + Betrag', String(green))+
+    kpi('nur Betrag', String(yellow))+
+    kpi('kein OP', String(none))+
+  '</div>';
+
+  if(nCleared)
+    html += note($('cfgHideCleared').checked?'ok':'',
+      '<b>'+nCleared+' Buchung'+(nCleared===1?'':'en')+' in '+nGroups+' Belegnummer'+
+      (nGroups===1?'':'n')+' saldier'+(nCleared===1?'t':'en')+' sich auf 0,00 €.</b> '+
+      ($('cfgHideCleared').checked
+        ? 'Sie gelten als geklärt und sind aus der Tabelle ausgeblendet — sie nehmen an der '+
+          'Zuordnung, an den Buchungssätzen und an der Beleganforderung <b>nicht</b> teil.'
+        : 'Das Ausblenden ist in den Einstellungen abgeschaltet — sie stehen weiter in der Tabelle '+
+          'und werden wie alle anderen behandelt.')+
+      clearedBox());
+
+  var guRows=S.postings.filter(function(p){ return p.reversal; });
+  if(guRows.length)
+    html += note('','<b>'+guRows.length+' Generalumkehrbuchung'+(guRows.length===1?'':'en')+
+      ' in der Lieferung.</b> DATEV liefert sie mit negativem Betrag; sie werden als negativer '+
+      '<b>Soll</b>umsatz geführt und zählen so in der Saldierung über Belegfeld 1 mit. Storniert '+
+      'werden sie nicht.'+rawTable(guRows));
+
+  html += note('','<b>Kontrollsummen der gelieferten Buchungen.</b> Soll '+fmt(sumSoll)+
+    ' € · Haben '+fmt(sumHaben)+' € · Saldo '+fmt(sumSoll-sumHaben)+' €.'+
+    '<div style="margin-top:7px;font-size:.83rem">Der Endpunkt <code>/account-postings</code> kennt '+
+    'laut Spezifikation <b>keine</b> Parameter <code>skip</code>/<code>top</code> — es gibt weder '+
+    'Blätterung noch einen Hinweis auf eine unvollständige Lieferung. Die offenen Posten wurden in '+
+    S.opPages+' Seite(n) mit <code>top='+opTop()+'</code> gelesen ('+S.opDelivered+
+    ' Datensätze geliefert).</div>');
+
+  if(itemsTrunc)
+    html += note('err','<b>Der OPOS-Abruf wurde nach '+S.opPages+' Seiten abgebrochen.</b> '+
+      'Die Liste der offenen Posten ist damit <b>unvollständig</b> — die Zuordnung unten ist nicht '+
+      'belastbar. Bitte die Seitengröße in den Einstellungen erhöhen und erneut abrufen.');
+
+  if(S.opCollapsed)
+    html += note('warn','<b>'+S.opCollapsed+' offene Posten wurden mehrfach identisch geliefert '+
+      'und zu je einem Eintrag zusammengefasst.</b> Zusammengefasst wird nur, was in Kreditor, '+
+      'Belegfeld 1, Saldo, Ursprungsbetrag, Belegdatum, Fälligkeit und Buchungstext '+
+      '<b>vollständig übereinstimmt</b> — es ändert sich kein Betrag, es verschwindet nur die '+
+      'Dopplung in der Auswahl. Die Anzahl steht dort als <code>[nx identisch geliefert]</code>.');
+
+  if(S.opStalled)
+    html += note('err','<b>Die Blätterung über den OPOS-Abruf wurde abgebrochen.</b> Eine '+
+      'Folgeseite lieferte ausschließlich Datensätze, die schon gelesen waren — der Dienst hat '+
+      '<code>skip</code> offenbar nicht ausgewertet. Ob damit alle offenen Posten vorliegen, ist '+
+      '<b>nicht</b> gesichert. Bitte die Seitengröße in den Einstellungen über die erwartete '+
+      'Postenzahl setzen und erneut abrufen.');
+
+  if(S.captionErr)
+    html += note('warn','<b>Die Kreditorenbezeichnungen konnten nicht gelesen werden.</b> '+
+      'Die Zuordnung arbeitet trotzdem, rechts steht dann nur die Kontonummer.<pre>'+
+      esc(S.captionErr)+'</pre>');
+
+  if(S.noBalCount && $('cfgBasis').value==='balance'){
+    html += note($('cfgBalFallback').checked?'warn':'err',
+      '<b>'+S.noBalCount+' von '+S.items.length+' offenen Posten liefern kein Feld '+
+      '<code>open_balance_of_item</code>.</b> '+
+      ($('cfgBalFallback').checked
+        ? 'Für diese Posten wird laut Einstellung ersatzweise der Ursprungsbetrag verglichen; '+
+          'betroffene Vorschläge sind in der Auswahl mit <code>[Ursprungsbetrag]</code> gekennzeichnet.'
+        : 'Diese Posten nehmen an der Zuordnung <b>nicht</b> teil. In den Einstellungen lässt sich '+
+          'ersatzweise der Ursprungsbetrag heranziehen.'));
+  }
+
+  html += renderNoMatchDiag();
+
+  var blocked=S.rows.filter(function(r){ return !!r.blocked; });
+  if(blocked.length){
+    var reasons={};
+    blocked.forEach(function(r){ reasons[r.blocked]=(reasons[r.blocked]||0)+1; });
+    html += note('err','<b>'+blocked.length+' Buchung'+(blocked.length===1?'':'en')+
+      ' lässt sich nicht stornieren.</b> Der Haken ist dort gesperrt, die Zeile rot hinterlegt:<ul '+
+      'style="margin:8px 0 0;padding-left:20px">'+
+      Object.keys(reasons).map(function(k){ return '<li>'+esc(k)+' — '+reasons[k]+'×</li>'; }).join('')+
+      '</ul>');
+  }
+
+  var amb=S.rows.filter(function(r){ return r.status==='green' && r.note==='mehrdeutig'; }).length;
+  if(amb)
+    html += note('warn','<b>'+amb+' Buchung'+(amb===1?'':'en')+' passt auf mehrere offene Posten '+
+      'mit gleicher Belegnummer und gleichem Betrag.</b> Zugeordnet wurde jeweils der <b>erste</b> '+
+      'passende Posten. Welcher Posten tatsächlich ausgeglichen werden soll, kann das Tool nicht '+
+      'entscheiden — bitte diese Zeilen über das Auswahlfeld rechts prüfen.');
+
+  var ymark=S.rows.filter(function(r){ return r.status==='yellow' && r.checked; }).length;
+  if(ymark)
+    html += note('warn','<b>'+ymark+' gelbe Buchung'+(ymark===1?' ist':'en sind')+' vorbelegt.</b> '+
+      'Dort stimmt <b>nur der Betrag</b> überein, nicht die Belegnummer — zugeordnet wurde jeweils '+
+      'der erste freie betragsgleiche offene Posten. Das ist ein Vorschlag, keine gesicherte '+
+      'Zuordnung: bitte diese Zeilen einzeln prüfen, bevor Sie korrigieren.');
+
+  var taken=S.rows.filter(function(r){ return r.status==='green' && r.note==='op-belegt'; }).length;
+  if(taken)
+    html += note('warn','<b>'+taken+' Buchung'+(taken===1?'':'en')+' zeigt auf einen offenen Posten, '+
+      'der bereits einer anderen Buchung zugeordnet ist.</b> Ein offener Posten kann nur einmal '+
+      'ausgeglichen werden — bitte prüfen, welche Buchung ihn ausgleicht.');
+
+  var guOpen=S.rows.filter(function(r){ return r.p.reversal; }).length;
+  if(guOpen)
+    html += note('warn','<b>'+guOpen+' Generalumkehrbuchung'+(guOpen===1?' steht':'en stehen')+
+      ' noch in der Tabelle (<span class="pill warn">GU</span>).</b> Sie saldiert sich über ihr '+
+      'Belegfeld 1 <b>nicht</b> auf 0,00 € — entweder fehlt die Originalbuchung in der Lieferung, '+
+      'oder die Belegnummern stimmen nicht überein. Bitte einzeln ansehen; die Rohwerte stehen oben '+
+      'in der Klappliste "Rohwerte der Generalumkehrbuchungen".');
+
+  var eb=S.rows.filter(function(r){ return r.p.isEB; }).length;
+  if(eb)
+    html += note('warn','<b>'+eb+' Eröffnungsbilanz-Buchung'+(eb===1?'':'en')+
+      ' (<span class="pill warn">EB</span>).</b> Ein EB-Wert ist ein Vortrag, keine einzelne Zahlung. '+
+      'Die Zeilen werden angezeigt und lassen sich markieren, sind aber selten der richtige Fall '+
+      'für eine Generalumkehr.');
+
+  html += renderTable();
+  html += '<div class="legend">'+
+    '<span><span class="sw g"></span>Belegfeld 1 <b>und</b> Betrag stimmen überein — Haken vorbelegt</span>'+
+    '<span><span class="sw y"></span>nur der Betrag stimmt überein — erster passender Posten '+
+      'zugeordnet, Haken <b>ebenfalls</b> vorbelegt</span>'+
+    '<span><span class="sw n"></span>kein passender offener Posten</span>'+
+    '<span><span class="sw b"></span>nicht buchbar</span>'+
+    '<span>Buchungen, die sich über ihr Belegfeld 1 auf 0,00 € saldieren, stehen nicht in '+
+      'dieser Tabelle.</span>'+
+  '</div>';
+
+  $('fetchResult').innerHTML = html;
+  wireTable();
+}
+
+/* ---------------------------------------------------------------------
+   Warum wurde kein offener Posten gefunden? Zahlen statt Vermutungen.
+   Erscheint, sobald mindestens eine Zeile ohne Kandidaten dasteht.
+   --------------------------------------------------------------------- */
+function renderNoMatchDiag(){
+  var noneRows=S.rows.filter(function(r){ return r.status==='none'; });
+  if(!noneRows.length) return '';
+  /* Die Diagnose hängt an der Expertenansicht (Vorgabe von Andreas, 14.09.2026).
+     Ist sie aus, bleibt nur ein Einzeiler — und auch der nur in dem Fall, in dem
+     ohne Diagnose niemand weiterkommt: gar keine Zuordnung. */
+  if(!$('cfgDiag').checked){
+    if(noneRows.length!==S.rows.length) return '';
+    return note('warn','<b>Keine einzige Zuordnung.</b> Woran es liegt, sagt die '+
+      '<b>Trefferdiagnose</b> mit Zahlen — dafür in den Einstellungen unter „Diagnose“ die '+
+      '<b>Expertenansicht</b> einschalten. Ein neuer Abruf ist dafür nicht nötig.');
+  }
+  var cfg=matchCfg();
+  var st=KT.itemStats(S.items, cfg);
+  var rg=KT.amountRange(noneRows.map(function(r){ return r.p; }));
+  var probe=KT.probeVariants(S.openPostings, S.items, cfg);
+  var alle=(noneRows.length===S.rows.length);
+  var basisTxt=(cfg.basis==='amount')?'Ursprungsbetrag (amount_debit/credit)'
+                                     :'offener Saldo (open_balance_of_item)';
+
+  var h='<b>'+noneRows.length+' von '+S.rows.length+' Buchung'+(S.rows.length===1?'':'en')+
+    ' ohne passenden offenen Posten'+(alle?' \u2014 also keine einzige Zuordnung':'')+'.</b>';
+
+  if(!S.items.length){
+    h += ' Es wurde <b>kein einziger offener Posten</b> geliefert. Dann kann nichts zugeordnet '+
+      'werden. Pr\u00fcfen: Ist der Abruf <code>GET /accounts-payable?filter=is_cleared eq false</code> '+
+      'durchgelaufen? Die Expertenansicht in den Einstellungen zeigt jeden Request mit Statuscode.';
+  }else if(st.usable===0){
+    h += ' Es sind <b>'+st.total+' offene Posten</b> da, aber <b>keiner</b> davon nimmt bei der '+
+      'aktuellen Einstellung am Betragsvergleich teil: die Basis ist <b>'+esc(basisTxt)+'</b>, und '+
+      st.without+' von '+st.total+' Posten liefern <code>open_balance_of_item</code> nicht.';
+  }
+
+  h += diagNumbers(st, rg, cfg, probe)+diagOptions(probe)+diagNearest(noneRows, cfg)+opRawTable();
+  return note(alle?'err':'warn', h);
+}
+
+function diagNumbers(st, rg, cfg, probe){
+  var rows=[
+    ['Offene Posten geliefert', S.opDelivered+' Datens\u00e4tze in '+S.opPages+' Seite(n)'],
+    ['nach Entdoppelung / Zusammenfassung', String(st.total)+(S.opCollapsed?' ('+S.opCollapsed+
+      ' identische zusammengefasst)':'')],
+    ['davon mit <code>open_balance_of_item</code>', String(st.withBal)],
+    ['davon <b>ohne</b> <code>open_balance_of_item</code>', String(st.without)],
+    ['nehmen am Betragsvergleich teil', String(st.usable)+' von '+st.total],
+    ['Betragsvergleich gegen', (cfg.basis==='amount'?'Ursprungsbetrag':'offenen Saldo')+
+      (cfg.balFallback?' (mit Ersatz auf den Ursprungsbetrag)':'')],
+    ['Betragstoleranz', fmtQ(cfg.tol)+' \u20ac'],
+    ['Belegnummern-Vergleich', cfg.docTol?'tolerant':'genau'],
+    ['Betragsbereich der Buchungen ohne Treffer',
+      (rg.min===null?'\u2014':fmt(rg.min)+' \u20ac bis '+fmt(rg.max)+' \u20ac')],
+    ['Betragsbereich der teilnehmenden Posten',
+      (st.min===null?'\u2014 (keiner nimmt teil)':fmt(st.min)+' \u20ac bis '+fmt(st.max)+' \u20ac')],
+    ['Zuordnungen mit der aktuellen Einstellung', String(probe.base)]
+  ];
+  return '<div class="tablewrap" style="margin-top:11px"><table><tbody>'+
+    rows.map(function(r){ return '<tr><td>'+r[0]+'</td><td class="mono"><b>'+r[1]+'</b></td></tr>'; })
+        .join('')+'</tbody></table></div>';
+}
+
+function diagOptions(probe){
+  if(!probe.options.length)
+    return '<div style="margin-top:10px;font-size:.86rem">Keine der pr\u00fcfbaren Einstellungen '+
+      '(andere Vergleichsbasis, Ersatz auf den Ursprungsbetrag, Toleranz bis 5,00 \u20ac) w\u00fcrde '+
+      'zus\u00e4tzliche Treffer bringen. Die Betr\u00e4ge der Buchungen kommen in den offenen Posten '+
+      'schlicht nicht vor \u2014 die Liste unten zeigt, was am n\u00e4chsten dran ist.</div>';
+  return '<div style="margin-top:10px;font-size:.86rem"><b>Durchgerechnet: das w\u00fcrde helfen</b> '+
+    '(jede Zeile ist ein echter Probelauf der Zuordnung, keine Sch\u00e4tzung)<ul style="margin:6px 0 0;'+
+    'padding-left:20px">'+probe.options.map(function(o){
+      return '<li>'+esc(o.label)+' \u2192 <b>+'+o.plus+'</b> Zuordnung'+(o.plus===1?'':'en')+
+             ' (dann '+o.total+' von '+S.rows.length+')</li>'; }).join('')+'</ul></div>';
+}
+
+function diagNearest(noneRows, cfg){
+  var body=noneRows.map(function(r){
+    var near=KT.nearestItems(r.p, S.items, cfg, S.rows, 3);
+    if(!near.length)
+      return '<tr><td class="mono">'+esc(deDate(r.p.iso))+'</td><td>'+esc(r.p.text||'\u2014')+
+        '</td><td class="num">'+fmt(r.p.amount)+'</td>'+
+        '<td colspan="4"><span class="dash">keine offenen Posten vorhanden</span></td></tr>';
+    return near.map(function(h,i){
+      return '<tr>'+
+        '<td class="mono">'+(i===0?esc(deDate(r.p.iso)):'')+'</td>'+
+        '<td><span class="txt">'+(i===0?esc(r.p.text||'\u2014'):'')+'</span></td>'+
+        '<td class="num">'+(i===0?fmt(r.p.amount):'')+'</td>'+
+        '<td class="mono">'+esc(KT.toDisplay(h.item.account,true,accLen()))+'</td>'+
+        '<td><span class="txt" title="'+esc(h.item.caption)+'">'+
+            (h.item.caption?esc(h.item.caption):'<span class="dash">ohne Bezeichnung</span>')+'</span></td>'+
+        '<td class="num">'+fmt(h.shown)+(h.value==null?' <span class="dash">(Ursprungsbetrag)</span>':'')+'</td>'+
+        '<td><span class="pill '+h.cls+'">'+esc(h.why)+'</span></td></tr>';
+    }).join('');
+  }).join('');
+  return '<details class="clearedbox" id="nearBox"><summary>Die betragsn\u00e4chsten offenen Posten '+
+    'je Buchung anzeigen</summary><div class="tablewrap"><table><thead><tr>'+
+    '<th>Belegdatum</th><th>Buchungstext</th><th class="num">Umsatz \u20ac</th>'+
+    '<th>Kreditor</th><th>Bezeichnung</th><th class="num">Betrag \u20ac</th>'+
+    '<th>warum nicht zugeordnet</th></tr></thead><tbody>'+body+'</tbody></table></div></details>';
+}
+
+/* Rohwerte der gelieferten offenen Posten - damit sichtbar ist, was wirklich ankommt. */
+function opRawTable(){
+  if(!S.items.length) return '';
+  var max=200, list=S.items.slice(0,max);
+  return '<details class="clearedbox" id="opRawBox"><summary>Rohwerte der offenen Posten '+
+    'anzeigen ('+S.items.length+(S.items.length>max?', erste '+max:'')+')</summary>'+
+    '<div class="tablewrap"><table><thead><tr><th>id</th><th>account_number</th>'+
+    '<th>document_field1</th><th class="num">amount (Ursprung)</th>'+
+    '<th class="num">open_balance_of_item</th><th>debit_credit_identifier</th>'+
+    '<th>Belegdatum</th><th>f\u00e4llig</th></tr></thead><tbody>'+
+    list.map(function(it){
+      return '<tr'+(it.hasBal?'':' class="m-blocked"')+'>'+
+        '<td class="mono">'+esc(it.id)+'</td>'+
+        '<td class="mono">'+esc(String(it.account))+'</td>'+
+        '<td class="mono">'+(it.doc1?esc(it.doc1):'<span class="dash">\u2014</span>')+'</td>'+
+        '<td class="num">'+fmtQ(it.amount)+'</td>'+
+        '<td class="num">'+(it.hasBal?fmtQ(it.bal):'<span class="pill err">nicht geliefert</span>')+'</td>'+
+        '<td class="mono">'+(it.balSide?esc(it.balSide):'<span class="dash">\u2014</span>')+'</td>'+
+        '<td class="mono">'+(it.iso?esc(deDate(it.iso)):'<span class="dash">\u2014</span>')+'</td>'+
+        '<td class="mono">'+(it.dueIso?esc(deDate(it.dueIso)):'<span class="dash">\u2014</span>')+'</td></tr>';
+    }).join('')+'</tbody></table></div></details>';
+}
+
+/* Klappliste der ausgeblendeten, ausgeglichenen Buchungen — je Belegnummer eine
+   Gruppe mit ihren Buchungen und der Summe. Nichts verschwindet unbenannt. */
+function clearedBox(){
+  if(!S.clearedGroups.length) return '';
+  return '<details class="clearedbox" id="clearedBox"><summary>'+
+    S.clearedGroups.length+' ausgeglichene Belegnummer'+(S.clearedGroups.length===1?'':'n')+
+    ' anzeigen</summary><div class="tablewrap"><table><thead><tr><th>Belegfeld 1</th>'+
+    '<th>Belegdatum</th><th>Buchungstext</th><th class="num">Soll €</th>'+
+    '<th class="num">Haben €</th><th>S/H</th><th>Gegenkonto</th><th>GU</th></tr></thead><tbody>'+
+    S.clearedGroups.map(function(g){
+      return g.postings.map(function(p,i){
+        return '<tr>'+
+          '<td class="mono">'+(i===0?esc(p.doc1):'')+'</td>'+
+          '<td class="mono">'+esc(deDate(p.iso))+'</td>'+
+          '<td><span class="txt" title="'+esc(p.text)+'">'+
+              (p.text?esc(p.text):'<span class="dash">—</span>')+'</span></td>'+
+          '<td class="num">'+fmt(p.soll)+'</td>'+
+          '<td class="num">'+fmt(p.haben)+'</td>'+
+          '<td class="mono">'+esc(p.side||'—')+'</td>'+
+          '<td class="mono">'+(p.contra?esc(String(p.contra)):'<span class="dash">—</span>')+'</td>'+
+          '<td class="mono">'+(p.reversal?'GU':'')+'</td></tr>';
+      }).join('')+
+      '<tr class="sum"><td colspan="3">Summe Belegnr. '+esc(g.doc1||'—')+' ('+g.postings.length+
+      ' Buchungen)</td><td class="num" colspan="2">'+fmt(g.sum)+'</td><td colspan="3"></td></tr>';
+    }).join('')+'</tbody></table></div></details>';
+}
+
+/* Rohwerte der Generalumkehrbuchungen — gelieferte Felder unverändert, daneben,
+   was daraus gemacht wurde. Belegt, dass nichts geraten wurde. */
+function rawTable(list){
+  if(!list.length) return '';
+  return '<details class="clearedbox" id="rawBox"><summary>Rohwerte der '+
+    'Generalumkehrbuchungen anzeigen</summary><div class="tablewrap"><table><thead><tr>'+
+    '<th>id</th><th>Belegdatum</th><th>Belegfeld 1</th><th class="num">amount_debit</th>'+
+    '<th class="num">amount_credit</th><th>general_reversal</th>'+
+    '<th class="num">gewertet als Soll €</th><th>umgelegt</th></tr></thead><tbody>'+
+    list.map(function(p){
+      return '<tr'+(p.revShifted?'':' class="m-blocked"')+'>'+
+        '<td class="mono">'+esc(p.id)+'</td>'+
+        '<td class="mono">'+esc(deDate(p.iso))+'</td>'+
+        '<td class="mono">'+(p.doc1?esc(p.doc1):'<span class="dash">—</span>')+'</td>'+
+        '<td class="num">'+fmtQ(p.rawDebit)+'</td>'+
+        '<td class="num">'+fmtQ(p.rawCredit)+'</td>'+
+        '<td class="mono">true</td>'+
+        '<td class="num">'+(p.revShifted?fmt(p.soll):'<span class="dash">—</span>')+'</td>'+
+        '<td>'+(p.revShifted?'<span class="pill ok">ja</span>'
+                            :'<span class="pill err">nein — nicht eindeutig</span>')+'</td></tr>';
+    }).join('')+'</tbody></table></div></details>';
+}
+
+function renderTable(){
+  if(!S.rows.length)
+    return note(S.postings.length?'ok':'warn', S.postings.length
+      ? '<b>Alle '+S.postings.length+' Buchungen des Klärungskontos sind ausgeglichen.</b> '+
+        'Jede Belegnummer saldiert sich auf 0,00 € — es bleibt nichts zu klären.'
+      : '<b>Keine Buchung auf dem Klärungskonto.</b> Es gibt nichts zu klären.');
+  var rows = S.rows.map(function(r,i){
+    var item = r.opId ? KT.assignedItem(r, S.items) : null;
+    var cls = r.blocked ? 'm-blocked' : (r.status==='green' ? 'm-green'
+            : (r.status==='yellow' ? 'm-yellow' : ''));
+    var sel;
+    if(!r.cands.length){
+      sel = '<span class="dash">kein passender offener Posten</span>';
+    }else{
+      var opts = ['<option value="">— keine Zuordnung → Ausbuchungskonto '+
+                  esc(String(ktoAusbuchung()))+(r.opId?'':'  (vorbelegt)')+' —</option>'];
+      r.cands.forEach(function(h){
+        opts.push('<option value="'+esc(h.item.id)+'"'+(r.opId===h.item.id?' selected':'')+'>'+
+          esc(optionText(h,r))+(r.opId===h.item.id?'  (vorbelegt)':'')+'</option>');
+      });
+      sel = '<select data-i="'+i+'" class="opsel">'+opts.join('')+'</select>';
+    }
+    return '<tr class="'+cls+'" data-row="'+i+'">'+
+      '<td class="chk"><input type="checkbox" data-i="'+i+'"'+(r.checked?' checked':'')+
+        (r.blocked?' disabled title="'+esc(r.blocked)+'"':'')+'></td>'+
+      '<td class="mono">'+esc(deDate(r.p.iso))+'</td>'+
+      '<td class="mono">'+(r.p.doc1?esc(r.p.doc1):'<span class="dash">—</span>')+'</td>'+
+      '<td><span class="txt" title="'+esc(r.p.text)+'">'+(r.p.text?esc(r.p.text):'<span class="dash">—</span>')+'</span></td>'+
+      '<td class="num">'+fmt(r.p.amount)+'</td>'+
+      '<td class="mono">'+esc(r.p.side||'?')+'</td>'+
+      '<td class="mono">'+(r.p.contra?esc(String(r.p.contra)):'<span class="dash">—</span>')+'</td>'+
+      '<td class="sep">'+statusPill(r)+' '+flagsOf(r)+'</td>'+
+      '<td class="opsel">'+sel+'</td>'+
+      '<td class="mono">'+(item?esc(KT.toDisplay(item.account,true,accLen())):'<span class="dash">—</span>')+'</td>'+
+      '<td><span class="txt" title="'+esc(item?item.caption:'')+'">'+
+          (item?(item.caption?esc(item.caption):'<span class="dash">ohne Bezeichnung</span>')
+               :'<span class="dash">—</span>')+'</span></td>'+
+      '<td class="mono">'+(item?(item.doc1?esc(item.doc1):'<span class="dash">—</span>')
+               :'<span class="dash">—</span>')+'</td>'+
+      '<td class="num">'+(item?fmt(item.hasBal?item.bal:item.amount):'<span class="dash">—</span>')+'</td>'+
+      '<td class="mono">'+(item&&item.dueIso?esc(deDate(item.dueIso)):'<span class="dash">—</span>')+'</td>'+
+    '</tr>';
+  }).join('');
+
+  return '<div class="tablewrap"><table><thead>'+
+    '<tr class="grouphead"><th class="left" colspan="8">Buchungssatz Klärungskonto '+
+      esc(String(ktoKlaerung()))+'</th>'+
+    '<th colspan="6">Zugeordneter offener Posten (Kreditor)</th></tr>'+
+    '<tr><th class="chk">✓</th><th>Belegdatum</th><th>Belegfeld 1</th><th>Buchungstext</th>'+
+      '<th class="num">Umsatz €</th><th>S/H</th><th>Gegenkonto</th><th class="sep">Zuordnung</th>'+
+      '<th>Offener Posten wählen</th><th>Kreditor</th><th>Bezeichnung</th><th>Belegfeld 1</th>'+
+      '<th class="num">Betrag €</th><th>fällig</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
+
+function wireTable(){
+  var box=$('fetchResult');
+  Array.prototype.forEach.call(box.querySelectorAll('input[type=checkbox][data-i]'), function(cb){
+    cb.onchange=function(){
+      var r=S.rows[+cb.dataset.i]; if(!r) return;
+      if(r.blocked){ cb.checked=false; return; }
+      r.checked=cb.checked;
+      rebuild();
+    };
+  });
+  Array.prototype.forEach.call(box.querySelectorAll('select.opsel'), function(sel){
+    var apply=function(){
+      var r=S.rows[+sel.dataset.i]; if(!r) return;
+      r.opId = sel.value || '';
+      refreshRow(+sel.dataset.i);
+      rebuild();
+    };
+    sel.onchange=apply;
+    /* Ein Klick auf den bereits gewählten Eintrag feuert kein change-Event.
+       Der Klick bestätigt die Auswahl deshalb zusätzlich — nicht zerstörend. */
+    sel.onclick=apply;
+  });
+}
+
+/* Eine Zeile nach einer Zuordnungsänderung neu zeichnen, ohne die ganze
+   Tabelle zu ersetzen (der Fokus des Bedieners bleibt erhalten). */
+function refreshRow(i){
+  var r=S.rows[i]; if(!r) return;
+  var tr=$('fetchResult').querySelector('tr[data-row="'+i+'"]'); if(!tr) return;
+  var item = r.opId ? KT.assignedItem(r,S.items) : null;
+  var tds=tr.children;
+  tds[9].innerHTML  = item?esc(KT.toDisplay(item.account,true,accLen())):'<span class="dash">—</span>';
+  tds[10].innerHTML = '<span class="txt" title="'+esc(item?item.caption:'')+'">'+
+    (item?(item.caption?esc(item.caption):'<span class="dash">ohne Bezeichnung</span>')
+         :'<span class="dash">—</span>')+'</span>';
+  tds[11].innerHTML = item?(item.doc1?esc(item.doc1):'<span class="dash">—</span>')
+                          :'<span class="dash">—</span>';
+  tds[12].innerHTML = item?fmt(item.hasBal?item.bal:item.amount):'<span class="dash">—</span>';
+  tds[13].innerHTML = (item&&item.dueIso)?esc(deDate(item.dueIso)):'<span class="dash">—</span>';
+}
+
+$('btnCheckAll').onclick = function(){
+  S.rows.forEach(function(r){ if(r.status==='green' && !r.blocked && r.opId) r.checked=true; });
+  syncChecks(); rebuild();
+};
+$('btnCheckNone').onclick = function(){
+  S.rows.forEach(function(r){ r.checked=false; });
+  syncChecks(); rebuild();
+};
+function syncChecks(){
+  Array.prototype.forEach.call($('fetchResult').querySelectorAll('input[type=checkbox][data-i]'),
+    function(cb){ var r=S.rows[+cb.dataset.i]; if(r) cb.checked=!!r.checked; });
+}
+
+/* =====================================================================
+   3 · KORRIGIEREN
+   ===================================================================== */
+function rebuild(){
+  S.entries = KT.buildRecords(S.rows, S.items, recCfg());
+  renderBook();
+  buildMail();
+}
+
+function renderBook(){
+  var html='';
+  var checked = S.rows.filter(function(r){ return r.checked; });
+  var withOp  = checked.filter(function(r){ return !!r.opId; });
+  var without = checked.filter(function(r){ return !r.opId; });
+  var sum = KT.r2(checked.reduce(function(a,r){ return a+r.p.amount; },0));
+  var seqs = KT.buildSequences(S.entries, seqCfg());
+  var months = KT.uniqueMonths(S.entries);
+
+  html += '<div class="kpis">'+
+    kpi('Markiert', checked.length+' Buchungen', true)+
+    kpi('Summe', fmt(sum)+' €')+
+    kpi('auf Kreditor', String(withOp.length))+
+    kpi('auf '+ktoAusbuchung(), String(without.length))+
+    kpi('Buchungssätze', String(S.entries.length))+
+    kpi('Stapel', String(seqs.length))+
+  '</div>';
+
+  var dups = KT.duplicateAssignments(S.rows);
+  if(dups.length)
+    html += note('err','<b>'+dups.length+' offener Posten ist mehrfach zugeordnet.</b> '+
+      'Zwei markierte Buchungen zeigen auf denselben Posten — er kann nur einmal ausgeglichen '+
+      'werden. Die Übergabe ist gesperrt, bis die Zuordnung eindeutig ist. Betroffene '+
+      'Posten-IDs: <code>'+esc(dups.join(', '))+'</code>');
+
+  if(!checked.length){
+    html += note('warn','<b>Keine Buchung markiert.</b> Es gibt nichts zu korrigieren. '+
+      'Alle Positionen laufen in die Beleganforderung unten.');
+  }else{
+    var rowsHtml = S.entries.map(function(e,i){
+      var r=e.rec;
+      return '<tr'+(e.kind==='gu'?' class="m-yellow"':'')+'>'+
+        '<td>'+(e.kind==='gu'?'<span class="pill warn">Generalumkehr</span>'
+                             :'<span class="pill ok">Neubuchung</span>')+'</td>'+
+        '<td class="mono">'+esc(deDate(KT.isoDate(r.date)))+'</td>'+
+        '<td class="mono">'+esc(String(r.account_number))+' ('+esc(r.debit_credit_identifier)+')</td>'+
+        '<td class="mono">'+esc(String(r.contra_account_number))+'</td>'+
+        '<td class="num">'+fmt(r.amount)+'</td>'+
+        '<td class="mono">'+(r.document_field1?esc(r.document_field1):'<span class="dash">—</span>')+'</td>'+
+        '<td><span class="txt" title="'+esc(r.posting_description||'')+'">'+
+            (r.posting_description?esc(r.posting_description):'<span class="dash">—</span>')+'</span></td>'+
+        '<td class="mono">'+(r.accounting_transaction_key!=null?esc(String(r.accounting_transaction_key))
+            :'<span class="dash">—</span>')+'</td>'+
+        '<td class="mono">'+(r.general_reversal?'true':'false')+'</td></tr>';
+    }).join('');
+    html += '<div class="tablewrap"><table><thead><tr><th>Art</th><th>Belegdatum</th>'+
+      '<th>Konto (S/H)</th><th>Gegenkonto</th><th class="num">Umsatz €</th><th>Belegfeld 1</th>'+
+      '<th>Buchungstext</th><th>BU</th><th>GU</th></tr></thead><tbody>'+rowsHtml+'</tbody></table></div>';
+
+    html += note('','<b>Je markierte Buchung entstehen zwei Buchungssätze.</b> '+
+      'Die Generalumkehr übernimmt Konto, Gegenkonto und Betrag der Buchung auf dem Klärungskonto, '+
+      'übergibt das Soll-/Haben-Kennzeichen aber <b>umgedreht</b> zusammen mit '+
+      '<code>general_reversal: true</code> — DATEV dreht beim Import selbst und negiert, so dass das '+
+      'Storno als negativer Umsatz auf der Seite der Originalbuchung landet und sie aufhebt. '+
+      'Die Neubuchung ersetzt das Klärungskonto durch den '+
+      'zugeordneten Kreditor (mit dem Belegfeld 1 des offenen Postens, damit DATEV den Posten '+
+      'ausgleicht) oder durch das Ausbuchungskonto <b>'+ktoAusbuchung()+'</b> (dann bleibt das '+
+      'Belegfeld 1 der Originalbuchung stehen).');
+
+    var cutSeqs=seqs.filter(function(x){ return x.descCut; });
+    if(cutSeqs.length)
+      html += note('err','<b>Die Bezeichnung des Stapels ist zu lang.</b> Das Feld '+
+        '<code>description</code> fasst '+KT.SEQ_DESC_MAX+' Zeichen. Übergeben würde '+
+        cutSeqs.map(function(x){ return '<code>'+esc(x.descFull)+'</code> ('+x.descFull.length+
+          ' Zeichen) → gekürzt auf <code>'+esc(x.body.description)+'</code>'; }).join(' · ')+
+        '. Bitte die Bezeichnung in den Einstellungen kürzen.');
+
+    if(months.length>1 && $('cfgSplit').value==='one')
+      html += note('warn','<b>Die Belegdaten liegen in '+months.length+' verschiedenen Monaten ('+
+        esc(months.map(KT.monthLabel).join(', '))+').</b> Die Spezifikation verlangt, dass '+
+        '<code>date_from</code> und <code>date_to</code> eines Stapels in <b>einem</b> '+
+        'Buchungszeitraum liegen. Dieser Stapel geht mit '+
+        '<code>'+esc(KT.isoDate(seqs[0].body.date_from))+'</code> bis '+
+        '<code>'+esc(KT.isoDate(seqs[0].body.date_to))+'</code> darüber hinaus. In den '+
+        'Einstellungen lässt sich „je Buchungsmonat ein eigener Stapel“ wählen.');
+
+    if(seqs.length>1)
+      html += note('','<b>'+seqs.length+' Stapel</b> werden nacheinander übergeben: '+
+        seqs.map(function(s){ return '<code>'+esc(s.body.description)+'</code> ('+
+          s.body.accounting_records.length+' Sätze)'; }).join(' · ')+
+        '. Schlägt einer fehl, bricht die Übergabe dort ab — die bereits übergebenen Stapel '+
+        'bleiben bestehen und werden unten benannt.');
+
+    if(S.fy && S.fy.is_locked)
+      html += note('err','<b>Das gewählte Wirtschaftsjahr ist gesperrt.</b> Eine Übergabe wird von '+
+        'DATEV voraussichtlich abgelehnt.');
+  }
+
+  if(S.posted.length)
+    html += note('ok','<b>In dieser Sitzung wurden bereits '+S.posted.length+
+      ' Stapel übergeben:</b> '+esc(S.posted.join(' · '))+'. Ein weiterer Klick erzeugt '+
+      '<b>zusätzliche</b> Stapel mit denselben Buchungen. Bitte vorher die Daten neu abrufen.');
+
+  $('bookResult').innerHTML = html;
+  updateSeqEcho();
+  var ok = S.entries.length>0 && !dups.length;
+  $('btnPost').disabled=!ok; $('btnShowJson').disabled=!ok; $('btnSaveJson').disabled=!ok;
+  if($('postJson').style.display!=='none') $('postJson').textContent = jsonOut();
+  if(S.entries.length) markDone('s3'); else undone('s3');
+}
+function jsonOut(){
+  var seqs=KT.buildSequences(S.entries, seqCfg());
+  return JSON.stringify(seqs.length===1?seqs[0].body:seqs.map(function(s){return s.body;}),null,2);
+}
+$('btnShowJson').onclick = function(){
+  var el=$('postJson');
+  if(el.style.display==='none'){ el.textContent=jsonOut(); el.style.display='block';
+    $('btnShowJson').textContent='JSON ausblenden'; }
+  else { el.style.display='none'; $('btnShowJson').textContent='JSON anzeigen'; }
+};
+$('btnSaveJson').onclick = function(){
+  var blob=new Blob([jsonOut()],{type:'application/json'});
+  var a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='buchungsstapel_klaerung_'+ktoKlaerung()+'_'+(S.fyId||'')+'.json'; a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); },2000);
+};
+
+$('btnPost').onclick = function(){
+  if(!S.entries.length) return;
+  var dups=KT.duplicateAssignments(S.rows);
+  if(dups.length){
+    $('postStatus').innerHTML = note('err','<b>Übergabe abgebrochen.</b> Ein offener Posten ist '+
+      'mehrfach zugeordnet.');
+    return;
+  }
+  var seqs=KT.buildSequences(S.entries, seqCfg());
+  var checked=S.rows.filter(function(r){ return r.checked; });
+  var msg='Korrigieren?\n\n'+checked.length+' markierte Buchungen\n'+
+    S.entries.length+' Buchungssätze (Generalumkehr + Neubuchung)\n'+
+    seqs.length+' Buchungsstapel\nFestschreiben: '+($('cfgCommit').checked?'ja':'nein');
+  if(typeof confirm==='function' && !confirm(msg)) return;
+  $('btnPost').disabled=true;
+  $('postStatus').innerHTML='<div class="notice"><span class="spin"></span> '+
+    'Buchungsstapel werden übergeben…</div>';
+  var url=baseUrl()+pathFy('/accounting-sequences');
+  var done=[];
+  var chain=Promise.resolve();
+  seqs.forEach(function(s){
+    chain=chain.then(function(){
+      return fetch(url,{ method:'POST', mode:'cors', credentials:S.credMode,
+        headers:{ 'Content-Type':'application/json;charset=utf-8', 'Accept':'application/json' },
+        body: JSON.stringify(s.body) }).then(function(res){
+        if(!res.ok) return res.text().catch(function(){return '';}).then(function(t){
+          diag('POST '+url+' → HTTP '+res.status+' '+String(t).slice(0,400));
+          var err=new Error('HTTP '+res.status+humanHint(res.status)+
+            (t?' — '+String(t).slice(0,400):''));
+          err.seq=s; throw err;
+        });
+        diag('POST '+url+' → HTTP '+res.status+' ('+s.body.description+')');
+        done.push(s.body.description+' ('+s.body.accounting_records.length+' Sätze)');
+        return res.text().catch(function(){ return ''; });
+      });
+    });
+  });
+  return chain.then(function(){
+    S.posted = S.posted.concat(done);
+    $('postStatus').innerHTML = note('ok',
+      '<b>'+done.length+' Buchungsstapel übergeben:</b> '+esc(done.join(' · '))+'.'+
+      '<div style="margin-top:9px;font-size:.95rem"><b>Der Stapel steht jetzt in der DATEV '+
+      'Stapelverarbeitung.</b> Bitte verarbeiten Sie ihn dort'+
+      ($('cfgCommit').checked?' (er wurde mit Festschreibekennzeichen übergeben)'
+                             :' — er ist nicht festgeschrieben und dort noch prüfbar')+
+      '.</div>');
+    renderBook();
+  }).catch(function(e){
+    $('postStatus').innerHTML = note('err','<b>Übergabe fehlgeschlagen.</b>'+
+      (done.length
+        ? ' <b>'+done.length+' Stapel wurden vorher bereits übergeben und stehen in DATEV:</b> '+
+          esc(done.join(' · '))+'. Der Rest wurde <b>nicht</b> gebucht.'
+        : ' Es wurde <b>nichts</b> gebucht.')+
+      '<pre>POST '+esc(url)+'\n\n'+esc(humanErr(e))+'</pre>');
+    if(done.length) S.posted = S.posted.concat(done);
+    $('btnPost').disabled=false;
+  });
+};
+
+/* =====================================================================
+   4 · BELEGANFORDERUNG
+   ===================================================================== */
+$('mailBodyTpl').value = KT.MAIL_TPL_DEFAULT;
+
+function buildMail(){
+  var cfg=mailCfg();
+  var m=KT.buildMailText(S.rows,cfg);
+  S.mail=m;
+  var quote=KT.taxQuotePct(cfg.vst,cfg.ertrag);
+
+  var warn='';
+  var tpl=$('mailBodyTpl').value;
+  if(/\{liste\}/.test(tpl)===false)
+    warn += note('warn','<b>Die Vorlage enthält keinen Platzhalter <code>{liste}</code>.</b> '+
+      'Die Positionsliste erscheint dadurch nicht in der Mail.');
+  if(/\*/.test(tpl) && !/\{fussnote\}/.test(tpl))
+    warn += note('warn','<b>Die Vorlage setzt eine Fußnoten-Markierung <code>*</code>, '+
+      'enthält aber keinen Platzhalter <code>{fussnote}</code>.</b> Die Erläuterung, wie sich die '+
+      'Quote von '+fmtQ(quote)+' % zusammensetzt, fehlt dann im Text.');
+  if(/\b41\s*%/.test(tpl) && Math.abs(quote-41)>0.5)
+    warn += note('warn','<b>Die Vorlage nennt „41%“, die eingestellten Sätze ergeben aber '+
+      fmtQ(quote)+' %.</b> Der Platzhalter <code>{maxproz}</code> setzt den gerundeten Wert '+
+      'automatisch ein.');
+  var skippedA = S.rows.filter(function(r){ return !r.checked && r.status==='green'; }).length;
+  if(cfg.noAssigned && skippedA)
+    warn += note('','<b>'+skippedA+' nicht markierte Position mit erkanntem offenen Posten bleibt '+
+      'laut Einstellung aus der Mail.</b>');
+  else if(!cfg.noAssigned && skippedA)
+    warn += note('warn','<b>'+skippedA+' nicht markierte Position hat einen erkannten offenen '+
+      'Posten und steht trotzdem in der Mail.</b> Für solche Positionen liegt in DATEV meist schon '+
+      'ein Beleg vor. In den Einstellungen lassen sie sich ausnehmen.');
+  if(!m.items.length)
+    warn += note('warn','<b>Keine Position für die Beleganforderung.</b> Alle in Frage kommenden '+
+      'Buchungen sind markiert und werden korrigiert.');
+  $('mailWarn').innerHTML = warn;
+
+  var mailtoLen = ('mailto:'+encodeURIComponent($('mailTo').value.trim())+
+    '?subject='+encodeURIComponent(m.subject)+'&body='+encodeURIComponent(m.body)).length;
+
+  var brutto=KT.r2(m.items.reduce(function(a,it){ return a+it.brutto; },0));
+  var html='<div class="kpis">'+
+    kpi('Positionen', String(m.items.length))+
+    kpi('Brutto gesamt', fmt(brutto)+' €')+
+    kpi('Steuereinsparpotenzial', fmt(m.sum)+' €', true)+
+    kpi('Rechnerisch', fmtQ(quote)+' % vom Brutto')+
+  '</div>';
+
+  if(m.items.length){
+    html += '<div class="tablewrap"><table><thead><tr><th>Belegdatum</th><th>Belegfeld 1</th>'+
+      '<th>Buchungstext</th><th class="num">Brutto €</th><th class="num">Netto €</th>'+
+      '<th class="num">Vorsteuer €</th><th class="num">Ertragsst. €</th>'+
+      '<th class="num">Potenzial €</th></tr></thead><tbody>'+
+      m.items.map(function(it){
+        return '<tr><td class="mono">'+esc(it.date)+'</td>'+
+          '<td class="mono">'+(it.doc1?esc(it.doc1):'<span class="dash">—</span>')+'</td>'+
+          '<td><span class="txt" title="'+esc(it.text)+'">'+
+              (it.text?esc(it.text):'<span class="dash">—</span>')+'</span></td>'+
+          '<td class="num">'+fmt(it.brutto)+'</td><td class="num">'+fmt(it.netto)+'</td>'+
+          '<td class="num">'+fmt(it.vst)+'</td><td class="num">'+fmt(it.ertrag)+'</td>'+
+          '<td class="num"><b>'+fmt(it.total)+'</b></td></tr>';
+      }).join('')+
+      '<tr class="sum"><td colspan="3">Summe</td>'+
+      '<td class="num">'+fmt(brutto)+'</td>'+
+      '<td class="num">'+fmt(m.items.reduce(function(a,it){return a+it.netto;},0))+'</td>'+
+      '<td class="num">'+fmt(m.items.reduce(function(a,it){return a+it.vst;},0))+'</td>'+
+      '<td class="num">'+fmt(m.items.reduce(function(a,it){return a+it.ertrag;},0))+'</td>'+
+      '<td class="num">'+fmt(m.sum)+'</td></tr></tbody></table></div>';
+  }
+
+  html += '<div class="field" style="margin-top:18px"><label>Betreff</label>'+
+    '<input type="text" id="mailSubjectOut" readonly value="'+esc(m.subject)+'"></div>'+
+    '<div class="field" style="margin-top:14px"><label>Nachricht</label>'+
+    '<textarea id="mailBodyOut" rows="20" readonly>'+esc(m.body)+'</textarea></div>';
+
+  html += note(mailtoLen>1800?'warn':'', 'Die <code>mailto:</code>-Adresse ist <b>'+mailtoLen+
+    '</b> Zeichen lang.'+(mailtoLen>1800
+      ? ' Manche Mailprogramme (u. a. Outlook) kürzen ab etwa 2.000 Zeichen <b>stillschweigend</b>. '+
+        'Bitte den Text über „Text kopieren“ übernehmen und die geöffnete Mail vor dem Versand auf '+
+        'Vollständigkeit prüfen.'
+      : ' Das liegt im unkritischen Bereich.'));
+
+  $('mailPreview').innerHTML = html;
+  $('btnMailOpen').disabled = !m.items.length;
+  $('btnMailCopy').disabled = !m.items.length;
+  if(m.items.length) markDone('s4'); else undone('s4');
+}
+$('btnMailBuild').onclick = buildMail;
+
+$('btnMailOpen').onclick = function(){
+  if(!S.mail) return;
+  var to=$('mailTo').value.trim();
+  var href='mailto:'+encodeURIComponent(to).replace(/%40/g,'@')+
+    '?subject='+encodeURIComponent(S.mail.subject)+'&body='+encodeURIComponent(S.mail.body);
+  setStatus('mailStatus','load','Mailprogramm wird geöffnet…');
+  try{
+    window.location.href=href;
+    setTimeout(function(){ setStatus('mailStatus', href.length>1800?'warn':'ok',
+      href.length>1800?'Geöffnet — Text auf Vollständigkeit prüfen!':'Geöffnet'); },700);
+  }catch(e){
+    setStatus('mailStatus','err','Fehlgeschlagen');
+    $('mailStatus').insertAdjacentHTML('afterend',
+      note('err','<b>Das Mailprogramm konnte nicht geöffnet werden.</b><pre>'+
+      esc(String(e.message||e))+'</pre>Bitte „Text kopieren“ verwenden.'));
+  }
+};
+$('btnMailCopy').onclick = function(){
+  if(!S.mail) return;
+  var text='Betreff: '+S.mail.subject+'\n\n'+S.mail.body;
+  var fallback=function(){
+    var ta=document.createElement('textarea'); ta.value=text;
+    ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select();
+    var ok=document.execCommand('copy'); document.body.removeChild(ta);
+    if(!ok) throw new Error('document.execCommand("copy") gab false zurück');
+  };
+  var p;
+  try{
+    p = (navigator.clipboard && navigator.clipboard.writeText)
+      ? navigator.clipboard.writeText(text) : Promise.resolve(fallback());
+  }catch(e){ p=Promise.reject(e); }
+  p.then(function(){ setStatus('mailStatus','ok','Betreff und Text kopiert'); })
+   .catch(function(e){
+      setStatus('mailStatus','err','Kopieren fehlgeschlagen');
+      $('mailStatus').insertAdjacentHTML('afterend',
+        note('err','<b>Kopieren in die Zwischenablage fehlgeschlagen.</b><pre>'+
+        esc(String(e.message||e))+'</pre>Der Text steht vollständig im Feld „Nachricht“ und kann '+
+        'von dort markiert und kopiert werden.'));
+   });
+};
+
+/* =====================================================================
+   4a · EMPFÄNGER AUS DEN ZENTRALEN STAMMDATEN (Client Master Data 1.7.1)
+   ---------------------------------------------------------------------
+   Die Accounting-Schnittstelle kennt zum Mandanten nur Nummer und Name.
+   Name, Briefanrede und E-Mail-Adresse stehen in den ZENTRALEN Stammdaten
+   (eigene Schnittstelle, Basis /datev/api/master-data/v1) und dort nicht am
+   Mandanten, sondern an seinem Adressaten:
+     GET /clients/{guid}                       -> legal_person_id / natural_person_id
+     GET /addressees/{id}?expand=detail,communications,contact_persons
+         -> current_company_name bzw. firstname + current_surname
+         -> detail.salutation  (Briefanrede, z. B. "Sehr geehrter Herr Mustermann,")
+         -> communications[] mit type 'email' und data_content
+   Die Mandanten-GUID der Accounting-Schnittstelle ist die zentrale
+   Mandanten-GUID; falls der direkte Abruf scheitert, wird der zweite
+   dokumentierte Weg über die Mandantennummer versucht (filter=number eq n).
+   ===================================================================== */
+function mdClient(){
+  return apiGetOn(baseUrlMd(), '/clients/'+encodeURIComponent(S.clientId))
+    .then(function(c){ return { client:c, via:'GUID '+S.clientId }; })
+    .catch(function(e1){
+      var n = parseInt(String(S.clientNumber).replace(/\D/g,''),10);
+      diag('Stammdaten: /clients/<GUID> fehlgeschlagen ('+(e1.status||'Netz')+
+           ') — zweiter Versuch über die Mandantennummer');
+      if(!isFinite(n)) throw e1;
+      return apiGetOn(baseUrlMd(), '/clients', { filter:'number eq '+n })
+        .then(asArr).then(function(list){
+          if(!list.length) throw new Error('Kein Mandant mit der Nummer '+n+
+            ' in den zentralen Stammdaten gefunden.');
+          return { client:list[0], via:'Mandantennummer '+n };
+        });
+    });
+}
+function emailsOf(addressee){
+  return (addressee && addressee.communications || [])
+    .filter(function(c){ return String(c.type||'').toLowerCase()==='email' &&
+                                String(c.data_content||'').trim(); })
+    .map(function(c){ return { addr:String(c.data_content).trim(),
+                               main:c.is_main_communication===true,
+                               note:String(c.note||'').trim() }; })
+    .sort(function(a,b){ return (b.main?1:0)-(a.main?1:0); });
+}
+function nameOf(addressee, fallback){
+  if(!addressee) return fallback||'';
+  if(addressee.current_company_name) return String(addressee.current_company_name);
+  var n=[addressee.firstname, addressee.current_surname].filter(Boolean).join(' ').trim();
+  return n || String(addressee.current_short_name||fallback||'');
+}
+
+$('btnLoadContact').onclick = function(){
+  if(!S.clientId){ setStatus('contactStatus','err','Erst Mandant wählen'); return; }
+  setStatus('contactStatus','load','Zentrale Stammdaten werden gelesen…');
+  S.contact=null; S.contactErr=''; $('contactResult').innerHTML='';
+  var client=null, via='';
+  return mdClient().then(function(r){
+    client=r.client; via=r.via;
+    var aid = client.legal_person_id || client.natural_person_id;
+    if(!aid) throw new Error('Der Mandant verweist weder auf ein Unternehmen '+
+      '(legal_person_id) noch auf eine Person (natural_person_id) — ohne Adressaten gibt es '+
+      'in den Stammdaten keine E-Mail-Adresse.');
+    return apiGetOn(baseUrlMd(), '/addressees/'+encodeURIComponent(aid),
+      { expand:'detail,communications,contact_persons' });
+  }).then(function(a){
+    S.contact = {
+      name: nameOf(a, client.name),
+      salutation: String((a.detail && a.detail.salutation) || '').trim(),
+      emails: emailsOf(a),
+      persons: (a.contact_persons||[]).filter(function(p){ return p.addressee_id; }),
+      type: String(a.type||''), via: via
+    };
+    setStatus('contactStatus','ok','Stammdaten gelesen');
+    renderContact();
+    if(S.contact.emails.length) applyEmail(S.contact.emails[0].addr);
+    buildMail();
+  }).catch(function(e){
+    S.contactErr = humanErr(e);
+    setStatus('contactStatus','err','Fehlgeschlagen');
+    $('contactResult').innerHTML = note('err',
+      '<b>Die zentralen Stammdaten konnten nicht gelesen werden.</b> Empfänger, Briefanrede und '+
+      'Name bleiben leer und können von Hand eingetragen werden — an der Beleganforderung selbst '+
+      'ändert das nichts.<pre>'+esc(baseUrlMd())+'\n\n'+esc(S.contactErr)+'</pre>'+
+      (e.status===404
+        ? 'Ein <b>404</b> hier heißt meist: die Schnittstelle <code>master-data/v1</code> ist auf '+
+          'diesem Arbeitsplatz nicht installiert oder nicht lizenziert (sie gehört zu DATEV '+
+          'Eigenorganisation), oder der Mandant ist dort nicht unter dieser GUID/Nummer geführt.'
+        : ''));
+  });
+};
+
+function applyEmail(addr){
+  $('mailTo').value = addr||'';
+  buildMail();
+}
+function renderContact(){
+  var c=S.contact; if(!c) return;
+  var html='';
+  html += note(c.emails.length?'ok':'warn',
+    '<b>'+esc(c.name||'(ohne Namen)')+'</b>'+
+    (c.type?' <span class="pill neutral">'+esc(c.type==='legal_person'?'Unternehmen':
+      (c.type==='natural_person'?'Person':c.type))+'</span>':'')+
+    ' · gefunden über '+esc(c.via)+
+    '<br>Briefanrede: '+(c.salutation
+      ? '<b>'+esc(c.salutation)+'</b>'
+      : '<span class="pill warn">nicht gepflegt</span> — der Platzhalter '+
+        '<code>{anrede}</code> setzt dann „Sehr geehrter Mandant,“ ein')+
+    '<br>E-Mail-Adressen: '+(c.emails.length
+      ? '<b>'+c.emails.length+'</b>'+(c.emails.length>1?' — bitte unten auswählen':'')
+      : '<span class="pill warn">keine im Adressaten hinterlegt</span>'));
+
+  if(c.emails.length>1){
+    html += '<div class="field" style="margin-top:14px"><label for="selMail">'+
+      'E-Mail-Adresse des Mandanten</label><select id="selMail">'+
+      c.emails.map(function(e,i){
+        return '<option value="'+esc(e.addr)+'">'+esc(e.addr)+
+          (e.main?' · Standardadresse':'')+(e.note?' · '+esc(e.note):'')+
+          (i===0?'  (vorbelegt)':'')+'</option>';
+      }).join('')+'</select></div>';
+  }
+
+  if(c.persons.length){
+    html += '<div class="field" style="margin-top:14px"><label>Kontaktpersonen des Mandanten</label>'+
+      '<div class="btnrow" style="margin-top:0">'+
+      c.persons.map(function(p,i){
+        return '<button class="btn ghost" data-cp="'+i+'">'+
+          esc(p.display_name||('Kontaktperson '+(i+1)))+
+          (p.function?' · '+esc(p.function):'')+'</button>';
+      }).join('')+'</div>'+
+      '<div class="hint">Die E-Mail-Adresse einer Kontaktperson steht an deren eigenem '+
+      'Adressaten und wird erst auf Klick nachgeladen.</div></div>'+
+      '<div id="cpResult"></div>';
+  }
+  $('contactResult').innerHTML = html;
+
+  var sel=$('selMail');
+  if(sel){
+    sel.selectedIndex=0;
+    var apply=function(){ applyEmail(sel.value); };
+    sel.onchange=apply;
+    sel.onclick=apply;              /* ein bereits gewählter Eintrag feuert kein change */
+  }
+  Array.prototype.forEach.call($('contactResult').querySelectorAll('button[data-cp]'),
+    function(b){ b.onclick=function(){ loadPerson(+b.dataset.cp); }; });
+}
+function loadPerson(i){
+  var c=S.contact, p=c && c.persons[i]; if(!p) return;
+  $('cpResult').innerHTML='<div class="notice"><span class="spin"></span> '+
+    esc(p.display_name||'Kontaktperson')+' wird gelesen…</div>';
+  return apiGetOn(baseUrlMd(), '/addressees/'+encodeURIComponent(p.addressee_id),
+      { expand:'detail,communications' })
+    .then(function(a){
+      var mails=emailsOf(a), sal=String((a.detail && a.detail.salutation)||'').trim();
+      if(!mails.length){
+        $('cpResult').innerHTML = note('warn','<b>'+esc(nameOf(a,p.display_name))+
+          '</b> hat in den Stammdaten keine E-Mail-Adresse.');
+        return;
+      }
+      applyEmail(mails[0].addr);
+      if(sal){ S.contact.salutation = sal; S.contact.name = nameOf(a,p.display_name); }
+      buildMail();
+      $('cpResult').innerHTML = note('ok','<b>Empfänger auf '+esc(nameOf(a,p.display_name))+
+        '</b> gesetzt: <code>'+esc(mails[0].addr)+'</code>'+
+        (mails.length>1?' (von '+mails.length+' Adressen die Standardadresse)':'')+
+        (sal?'<br>Briefanrede übernommen: <b>'+esc(sal)+'</b>':
+             '<br>Für diese Person ist keine Briefanrede gepflegt — die des Mandanten bleibt stehen.'));
+    })
+    .catch(function(e){
+      $('cpResult').innerHTML = note('err','<b>Die Kontaktperson konnte nicht gelesen werden.</b>'+
+        '<pre>'+esc(humanErr(e))+'</pre>');
+    });
+}
+
+/* =====================================================================
+   Ereignisse / Synchronisation
+   ===================================================================== */
+function resetFrom2(){
+  S.postings=[]; S.openPostings=[]; S.clearedPostings=[]; S.clearedGroups=[];
+  S.items=[]; S.rows=[]; S.entries=[]; S.mail=null;
+  S.captions={}; S.captionErr=''; S.noBalCount=0; S.opDelivered=0; S.opPages=0;
+  $('fetchResult').innerHTML=''; $('fetchStatus').innerHTML='';
+  $('bookResult').innerHTML=''; $('postStatus').innerHTML=''; $('mailPreview').innerHTML='';
+  $('mailWarn').innerHTML=''; $('mailStatus').innerHTML='';
+  $('postJson').style.display='none'; $('btnShowJson').textContent='JSON anzeigen';
+  $('btnPost').disabled=true; $('btnSaveJson').disabled=true; $('btnShowJson').disabled=true;
+  $('btnMailOpen').disabled=true; $('btnMailCopy').disabled=true;
+  ['s2','s3','s4'].forEach(undone);
+  disable('card3'); disable('card4');
+}
+
+/* Änderungen an den Zuordnungsregeln erfordern eine neue Bewertung der
+   bereits abgerufenen Daten — die Haken werden dabei neu vorbelegt. */
+function rematch(){
+  if(!S.postings.length) return;
+  S.items.forEach(function(it){ it.caption = it.caption || captionOf(it.account); });
+  applySettlement();
+  S.rows = KT.matchAll(S.openPostings, S.items, matchCfg());
+  renderCompare(S.postings.length, 0, false, false);
+  rebuild();
+}
+['cfgBasis','cfgTol','cfgDocTol','cfgBalFallback','cfgHideCleared'].forEach(function(id){
+  $(id).onchange=function(){ refreshTech(); rematch(); };
+});
+['cfgKtoKlaerung','cfgKtoAusbuchung'].forEach(function(id){
+  $(id).oninput=function(){ refreshTech(); if(S.rows.length) rebuild(); };
+});
+['cfgPrefixGu','cfgPrefixNeu','cfgSplit','cfgSeqName','cfgCommit'].forEach(function(id){
+  $(id).onchange=function(){ if(S.rows.length) renderBookSafe(); };
+});
+$('cfgSeqName').oninput=function(){ updateSeqEcho(); if(S.rows.length) renderBookSafe(); };
+function renderBookSafe(){ S.entries=KT.buildRecords(S.rows,S.items,recCfg()); renderBook(); }
+['cfgVst','cfgErtrag'].forEach(function(id){
+  $(id).oninput=function(){ refreshTech(); if(S.rows.length) buildMail(); };
+});
+['cfgMailSollOnly','cfgMailNoAssigned'].forEach(function(id){
+  $(id).onchange=function(){ if(S.rows.length) buildMail(); };
+});
+['mailSubjectTpl','mailBodyTpl','mailTo'].forEach(function(id){
+  $(id).oninput=function(){ if(S.rows.length) buildMail(); };
+});
+$('cfgDiag').onchange=function(){
+  syncDiag();
+  /* Die Trefferdiagnose hängt an diesem Schalter — also neu zeichnen, ohne neuen Abruf. */
+  if(S.rows.length){ renderCompare(S.postings.length,0,false,false); rebuild(); }
+};
+refreshTech();
+updateSeqEcho();
+if(typeof window!=='undefined'){ window.S=S; window.__doFetch=doFetch; window.__rematch=rematch; }
+</script>
+</body>
+</html>
